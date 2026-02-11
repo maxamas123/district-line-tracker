@@ -6,7 +6,7 @@
     <title>District Line Tracker</title>
     <meta name="description" content="Report and track delays on the District Line Wimbledon branch. Community evidence for better service.">
     <meta name="theme-color" content="#00843D">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23E32017' stroke-width='12'/><rect x='5' y='38' width='90' height='24' fill='%23003688'/><text x='50' y='54' font-family='Arial,sans-serif' font-size='10.5' fill='white' text-anchor='middle' font-weight='bold'>WIMBLEDON</text></svg>">
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -44,7 +44,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="incident_date">Date</label>
-                    <input type="date" id="incident_date" name="incident_date" required>
+                    <input type="date" id="incident_date" name="incident_date" required min="2026-01-01">
                 </div>
                 <div class="form-group">
                     <label for="incident_time">Time</label>
@@ -72,7 +72,7 @@
                 <label for="direction">Direction of travel</label>
                 <select id="direction" name="direction" required>
                     <option value="">Select direction...</option>
-                    <option value="Eastbound (towards City)">Eastbound (towards City)</option>
+                    <option value="Eastbound (towards Earls Court)">Eastbound (towards Earls Court)</option>
                     <option value="Westbound (towards Wimbledon)">Westbound (towards Wimbledon)</option>
                     <option value="Both / General">Both / General</option>
                 </select>
@@ -132,14 +132,14 @@
             <h4 style="color: #1A56A8;">Why we need community data</h4>
             <p style="color: #3A5F8F;">TfL used to measure the impact of delays using a metric called <strong>Lost Customer Hours</strong>, which estimated the time lost by passengers due to disruptions of two minutes or more. However, TfL stopped publishing this data after period 12 of 2019/20 — citing changes in passenger demand due to COVID. They have never resumed reporting it, even as ridership has returned to near pre-pandemic levels.</p>
             <p style="color: #3A5F8F;">This means there is currently <strong>no official measure</strong> of the real-world impact of delays on commuters. This tracker exists to fill that gap — giving Wimbledon branch passengers a way to record and quantify the time they lose, so we can present hard evidence to our MP and TfL.</p>
-            <p style="color: #3A5F8F; font-size: 11px; font-style: italic; opacity: 0.8; margin-top: 8px;">Source: TfL performance data, tfl.gov.uk</p>
+            <p style="color: #3A5F8F; font-size: 11px; font-style: italic; opacity: 0.8; margin-top: 8px;">Source: <a href="https://tfl.gov.uk/corporate/publications-and-reports/underground-services-performance" target="_blank" rel="noopener" style="color: #3A5F8F;">TfL Underground Services Performance</a></p>
         </div>
         <div class="footer-section">
             <h4>Your data and privacy</h4>
             <p>Your name will only be displayed on reports if you choose to include it — by doing so, you give us permission to show it publicly on this site. If you leave the name field blank, your report appears as "Anonymous". We only collect and store the information you submit (station, time, delay, description) for the sole purpose of collating evidence to improve District Line service and increase investment. We do not share your data with third parties or use it for any other purpose. All data may be included in reports shared with your local MP and TfL.</p>
         </div>
         <div class="footer-section" style="text-align: center;">
-            <p>Built by Wimbledon branch commuters. TfL status via <a href="https://api.tfl.gov.uk" target="_blank" rel="noopener">TfL Open Data</a>.</p>
+            <p>Built by Wimbledon branch commuters. TfL status via <a href="https://tfl.gov.uk/info-for/open-data-users/" target="_blank" rel="noopener">TfL Open Data</a>.</p>
             <p style="margin-top: 8px;"><a href="mailto:districtlinetracker@gmail.com?subject=Suggestion%20for%20District%20Line%20Tracker">Suggest an improvement to this app</a></p>
         </div>
     </div>

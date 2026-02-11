@@ -140,6 +140,9 @@ function renderReport(r) {
                 '<button class="edit-btn" data-report-id="' + r.id + '" title="Edit your report">' +
                     '&#9998; Edit' +
                 '</button>' +
+                '<button class="delete-btn" data-report-id="' + r.id + '" title="Delete your report">' +
+                    '&#128465; Delete' +
+                '</button>' +
                 '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">Your report</span>' +
                 (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
             '</div>';
@@ -264,6 +267,15 @@ function attachHandlers() {
             var id = this.getAttribute("data-report-id");
             var report = loadedReports[id];
             if (report) showEditModal(report);
+        };
+    }
+
+    // Delete buttons
+    var deleteBtns = document.querySelectorAll(".delete-btn");
+    for (var k = 0; k < deleteBtns.length; k++) {
+        deleteBtns[k].onclick = function () {
+            var id = this.getAttribute("data-report-id");
+            showDeleteConfirm(id);
         };
     }
 }

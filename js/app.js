@@ -120,6 +120,24 @@ function supabaseUpdate(table, id, row) {
 }
 
 
+function supabaseDelete(table, id) {
+    return fetch(SUPABASE_URL + "/rest/v1/" + table + "?id=eq." + id, {
+        method: "DELETE",
+        headers: {
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": "Bearer " + SUPABASE_ANON_KEY
+        }
+    }).then(function (res) {
+        if (!res.ok) {
+            return res.text().then(function (text) {
+                throw new Error(text || "Delete failed");
+            });
+        }
+        return true;
+    });
+}
+
+
 /* ---- Toast ---- */
 
 function showToast(message, type) {
@@ -193,16 +211,30 @@ function markUnvoted(reportId) {
     }
 }
 
+function extractRpcCount(result) {
+    if (typeof result === "number") return result;
+    if (typeof result === "string") return parseInt(result, 10) || 0;
+    if (result && typeof result === "object") {
+        if (Array.isArray(result) && result.length > 0) return extractRpcCount(result[0]);
+        var keys = Object.keys(result);
+        for (var i = 0; i < keys.length; i++) {
+            var val = result[keys[i]];
+            if (typeof val === "number") return val;
+        }
+    }
+    return 0;
+}
+
 function doUpvote(reportId, btnEl) {
     var alreadyVoted = hasUpvoted(reportId);
 
     if (alreadyVoted) {
         // Toggle OFF: remove upvote
         supabaseRpc("downvote_report", { report_id: reportId })
-            .then(function (newCount) {
+            .then(function (resp) {
+                var newCount = extractRpcCount(resp);
                 markUnvoted(reportId);
-                var countEl = btnEl.querySelector(".upvote-count");
-                if (countEl) countEl.textContent = newCount;
+                btnEl.innerHTML = '&#128077; Me too <span class="upvote-count">' + newCount + '</span>';
                 btnEl.classList.remove("voted");
                 btnEl.title = "Tap if you experienced this too";
                 showToast("Your confirmation has been removed", "success");
@@ -214,10 +246,10 @@ function doUpvote(reportId, btnEl) {
     } else {
         // Toggle ON: add upvote
         supabaseRpc("upvote_report", { report_id: reportId })
-            .then(function (newCount) {
+            .then(function (resp) {
+                var newCount = extractRpcCount(resp);
                 markUpvoted(reportId);
-                var countEl = btnEl.querySelector(".upvote-count");
-                if (countEl) countEl.textContent = newCount;
+                btnEl.innerHTML = '&#10003; Confirmed <span class="upvote-count">' + newCount + '</span>';
                 btnEl.classList.add("voted");
                 btnEl.title = "Tap again to remove your confirmation";
                 showToast("Confirmed — your time lost has been added", "success");
@@ -264,7 +296,7 @@ var CATEGORIES_LIST = [
 ];
 
 var DIRECTIONS_LIST = [
-    "Eastbound (towards City)", "Westbound (towards Wimbledon)", "Both / General"
+    "Eastbound (towards Earls Court)", "Westbound (towards Wimbledon)", "Both / General"
 ];
 
 function showEditModal(report) {
@@ -288,7 +320,7 @@ function showEditModal(report) {
             '<h3>Edit your report</h3>' +
             '<div class="form-group">' +
                 '<label>Date</label>' +
-                '<input type="date" id="edit-date" value="' + (report.incident_date || '') + '">' +
+                '<input type="date" id="edit-date" value="' + (report.incident_date || '') + '" min="2026-01-01">' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Time</label>' +
@@ -314,6 +346,10 @@ function showEditModal(report) {
                 '<label>Description</label>' +
                 '<textarea id="edit-description" rows="3">' + (report.description || '') + '</textarea>' +
             '</div>' +
+            '<div class="form-group">' +
+                '<label>Your name</label>' +
+                '<input type="text" id="edit-name" placeholder="Anonymous">' +
+            '</div>' +
             '<div class="btn-row">' +
                 '<button class="btn-cancel" id="edit-cancel-btn">Cancel</button>' +
                 '<button class="btn-save" id="edit-save-btn">Save changes</button>' +
@@ -326,6 +362,9 @@ function showEditModal(report) {
 
     document.body.appendChild(overlay);
 
+    // Set name value safely via JS (avoids quote escaping issues in innerHTML)
+    document.getElementById("edit-name").value = report.reporter_name || "";
+
     document.getElementById("edit-cancel-btn").addEventListener("click", function () {
         overlay.remove();
     });
@@ -336,6 +375,7 @@ function showEditModal(report) {
         btn.textContent = "Saving...";
 
         var delayVal = document.getElementById("edit-delay").value;
+        var nameVal = document.getElementById("edit-name").value;
         var updated = {
             incident_date: document.getElementById("edit-date").value,
             incident_time: document.getElementById("edit-time").value,
@@ -343,7 +383,8 @@ function showEditModal(report) {
             direction: document.getElementById("edit-direction").value,
             category: document.getElementById("edit-category").value,
             delay_minutes: delayVal ? parseInt(delayVal, 10) : null,
-            description: document.getElementById("edit-description").value
+            description: document.getElementById("edit-description").value,
+            reporter_name: nameVal || "Anonymous"
         };
 
         supabaseUpdate("reports", report.id, updated)
@@ -358,6 +399,64 @@ function showEditModal(report) {
                 btn.disabled = false;
                 btn.textContent = "Save changes";
                 showToast("Error: " + err.message, "error");
+            });
+    });
+}
+
+
+/* ---- Delete confirmation ---- */
+
+function removeMyReport(reportId) {
+    var mine = JSON.parse(localStorage.getItem("dlt_my_reports") || "[]");
+    var idx = mine.indexOf(reportId);
+    if (idx !== -1) {
+        mine.splice(idx, 1);
+        localStorage.setItem("dlt_my_reports", JSON.stringify(mine));
+    }
+}
+
+function showDeleteConfirm(reportId) {
+    var overlay = document.createElement("div");
+    overlay.className = "edit-modal-overlay";
+    overlay.innerHTML =
+        '<div class="edit-modal" style="max-width: 360px;">' +
+            '<h3>Delete this report?</h3>' +
+            '<p style="font-size: 14px; color: var(--text-muted); margin-bottom: 16px;">This will permanently remove your report. This action cannot be undone.</p>' +
+            '<div class="btn-row">' +
+                '<button class="btn-cancel" id="delete-cancel-btn">Cancel</button>' +
+                '<button class="btn-save" id="delete-confirm-btn" style="background: var(--red);">Delete</button>' +
+            '</div>' +
+        '</div>';
+
+    overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) overlay.remove();
+    });
+
+    document.body.appendChild(overlay);
+
+    document.getElementById("delete-cancel-btn").addEventListener("click", function () {
+        overlay.remove();
+    });
+
+    document.getElementById("delete-confirm-btn").addEventListener("click", function () {
+        var btn = this;
+        btn.disabled = true;
+        btn.textContent = "Deleting...";
+
+        supabaseDelete("reports", reportId)
+            .then(function () {
+                overlay.remove();
+                removeMyReport(reportId);
+                showToast("Report deleted", "success");
+                // Remove the card from the feed
+                var card = document.getElementById("report-" + reportId);
+                if (card) card.remove();
+                if (typeof loadTimeLostHero === "function") loadTimeLostHero();
+            })
+            .catch(function (err) {
+                btn.disabled = false;
+                btn.textContent = "Delete";
+                showToast("Could not delete report. Try again.", "error");
             });
     });
 }
@@ -390,6 +489,13 @@ function initReportForm() {
 
     form.addEventListener("submit", function (e) {
         e.preventDefault();
+
+        // Date validation: no earlier than 1 Jan 2026
+        var dateVal = document.getElementById("incident_date").value;
+        if (dateVal < "2026-01-01") {
+            showToast("Date must be 1 January 2026 or later", "error");
+            return;
+        }
 
         // Rate limit check
         if (!canSubmit()) {

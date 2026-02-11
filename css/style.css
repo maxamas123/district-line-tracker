@@ -437,6 +437,25 @@ textarea {
 
 .edit-btn:hover { border-color: var(--amber); color: var(--amber); }
 
+/* ---- Delete button ---- */
+
+.delete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.delete-btn:hover { border-color: var(--red); color: var(--red); }
+
 /* ---- Edit modal ---- */
 
 .edit-modal-overlay {

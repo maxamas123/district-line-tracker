@@ -62,6 +62,10 @@ CREATE POLICY "Anyone can upvote reports"
     USING (true)
     WITH CHECK (true);
 
+CREATE POLICY "Anyone can delete reports"
+    ON reports FOR DELETE
+    USING (true);
+
 ALTER TABLE tfl_status_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Anyone can read tfl status"
