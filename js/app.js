@@ -7,8 +7,8 @@
  * Find them in Supabase Dashboard > Settings > API.
  */
 
-var SUPABASE_URL = "https://YOUR_PROJECT_REF.supabase.co";
-var SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
+var SUPABASE_URL = "https://mpcxvcrlvvybpxnmvkte.supabase.co";
+var SUPABASE_ANON_KEY = "sb_publishable_Mdg7Ho_4EGfYeX98I9_TOg_XIS5C9Ky";
 
 /* ---- TfL API ---- */
 var TFL_API = "https://api.tfl.gov.uk/Line/district/Status";
