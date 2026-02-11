@@ -39,7 +39,7 @@ function updateTflBanner(status) {
     var textEl = document.getElementById("tfl-status-text");
     if (!el || !textEl || !status) return;
 
-    el.style.display = "inline-flex";
+    el.style.display = "flex";
     textEl.textContent = "TfL says: " + status.description;
 
     el.className = "tfl-status";
@@ -96,7 +96,14 @@ function supabaseRpc(fnName, args) {
             "Content-Type": "application/json"
         },
         body: JSON.stringify(args)
-    }).then(function (res) { return res.json(); });
+    }).then(function (res) {
+        if (!res.ok) {
+            return res.json().then(function (err) {
+                throw new Error(err.message || "RPC " + fnName + " failed");
+            });
+        }
+        return res.json();
+    });
 }
 
 function supabaseUpdate(table, id, row) {
@@ -251,6 +258,11 @@ function extractRpcCount(result) {
 }
 
 function doUpvote(reportId, btnEl) {
+    // Prevent double-clicks while RPC is in flight
+    if (btnEl.disabled) return;
+    btnEl.disabled = true;
+    btnEl.style.opacity = "0.6";
+
     var alreadyVoted = hasUpvoted(reportId);
 
     if (alreadyVoted) {
@@ -268,6 +280,10 @@ function doUpvote(reportId, btnEl) {
             })
             .catch(function () {
                 showToast("Could not remove vote. Try again.", "error");
+            })
+            .finally(function () {
+                btnEl.disabled = false;
+                btnEl.style.opacity = "";
             });
     } else {
         // Toggle ON: add upvote
@@ -284,6 +300,10 @@ function doUpvote(reportId, btnEl) {
             })
             .catch(function () {
                 showToast("Could not upvote. Try again.", "error");
+            })
+            .finally(function () {
+                btnEl.disabled = false;
+                btnEl.style.opacity = "";
             });
     }
 }

@@ -169,14 +169,17 @@ body {
 /* ---- TfL live status chip ---- */
 
 .tfl-status {
-    display: inline-flex;
+    display: none;
     align-items: center;
+    justify-content: center;
     gap: 6px;
     padding: 6px 14px;
     border-radius: 20px;
     font-size: 13px;
     font-weight: 600;
-    margin-top: 12px;
+    margin: 12px auto 0;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .tfl-status.good {
