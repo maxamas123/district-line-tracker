@@ -40,57 +40,68 @@ function formatHours(totalMinutes) {
 
 /* ---- Time lost hero ---- */
 
+function renderTimeLostHero(reports) {
+    var heroEl = document.getElementById("time-lost-hero");
+    if (!heroEl) return;
+
+    var totalMinutes = 0;
+    var thisWeekMinutes = 0;
+    var thisMonthMinutes = 0;
+    var totalReports = reports.length;
+
+    var now = new Date();
+    var weekAgo = new Date(now - 7 * 86400000);
+    var monthAgo = new Date(now - 30 * 86400000);
+
+    for (var i = 0; i < reports.length; i++) {
+        var r = reports[i];
+        if (!r.delay_minutes || r.delay_minutes <= 0) continue;
+
+        var peopleLost = 1 + (r.upvotes || 0);
+        var minutesLost = r.delay_minutes * peopleLost;
+
+        totalMinutes += minutesLost;
+
+        var d = new Date(r.incident_date + "T00:00:00");
+        if (d >= weekAgo) thisWeekMinutes += minutesLost;
+        if (d >= monthAgo) thisMonthMinutes += minutesLost;
+    }
+
+    heroEl.innerHTML =
+        '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
+        '<div class="big-label">' +
+            'total commuter time lost' +
+            '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
+        '</div>' +
+        '<div class="sub-stats">' +
+            '<div>' +
+                '<div class="sub-stat-value">' + formatHours(thisWeekMinutes) + '</div>' +
+                '<div class="sub-stat-label">this week</div>' +
+            '</div>' +
+            '<div>' +
+                '<div class="sub-stat-value">' + formatHours(thisMonthMinutes) + '</div>' +
+                '<div class="sub-stat-label">this month</div>' +
+            '</div>' +
+            '<div>' +
+                '<div class="sub-stat-value">' + totalReports + '</div>' +
+                '<div class="sub-stat-label">reports</div>' +
+            '</div>' +
+        '</div>';
+}
+
 function loadTimeLostHero() {
     var heroEl = document.getElementById("time-lost-hero");
     if (!heroEl) return;
 
-    // Fetch all reports to calculate time lost
+    // Demo mode: use static dummy data
+    if (typeof isDemoMode === "function" && isDemoMode()) {
+        renderTimeLostHero(DEMO_REPORTS);
+        return;
+    }
+
     supabaseSelect("reports", "select=delay_minutes,upvotes,incident_date&order=incident_date.desc")
         .then(function (reports) {
-            var totalMinutes = 0;
-            var thisWeekMinutes = 0;
-            var thisMonthMinutes = 0;
-            var totalReports = reports.length;
-
-            var now = new Date();
-            var weekAgo = new Date(now - 7 * 86400000);
-            var monthAgo = new Date(now - 30 * 86400000);
-
-            for (var i = 0; i < reports.length; i++) {
-                var r = reports[i];
-                if (!r.delay_minutes || r.delay_minutes <= 0) continue;
-
-                // Time lost = delay * (1 reporter + upvotes)
-                var peopleLost = 1 + (r.upvotes || 0);
-                var minutesLost = r.delay_minutes * peopleLost;
-
-                totalMinutes += minutesLost;
-
-                var d = new Date(r.incident_date + "T00:00:00");
-                if (d >= weekAgo) thisWeekMinutes += minutesLost;
-                if (d >= monthAgo) thisMonthMinutes += minutesLost;
-            }
-
-            heroEl.innerHTML =
-                '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
-                '<div class="big-label">' +
-                    'total commuter time lost' +
-                    '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
-                '</div>' +
-                '<div class="sub-stats">' +
-                    '<div>' +
-                        '<div class="sub-stat-value">' + formatHours(thisWeekMinutes) + '</div>' +
-                        '<div class="sub-stat-label">this week</div>' +
-                    '</div>' +
-                    '<div>' +
-                        '<div class="sub-stat-value">' + formatHours(thisMonthMinutes) + '</div>' +
-                        '<div class="sub-stat-label">this month</div>' +
-                    '</div>' +
-                    '<div>' +
-                        '<div class="sub-stat-value">' + totalReports + '</div>' +
-                        '<div class="sub-stat-label">reports</div>' +
-                    '</div>' +
-                '</div>';
+            renderTimeLostHero(reports);
         })
         .catch(function () {
             heroEl.innerHTML = '<div class="big-label">Could not load time-lost data</div>';
@@ -197,6 +208,35 @@ function loadFeed(reset) {
     var container = document.getElementById("feed-container");
     var loadMoreContainer = document.getElementById("load-more-container");
 
+    // Demo mode: use static dummy data
+    if (typeof isDemoMode === "function" && isDemoMode()) {
+        var demoFiltered = DEMO_REPORTS.slice();
+        var station = document.getElementById("filter-station").value;
+        var category = document.getElementById("filter-category").value;
+        if (station) demoFiltered = demoFiltered.filter(function (r) { return r.station === station; });
+        if (category) demoFiltered = demoFiltered.filter(function (r) { return r.category === category; });
+
+        // Sort newest first
+        demoFiltered.sort(function (a, b) {
+            return (b.incident_date + b.incident_time).localeCompare(a.incident_date + a.incident_time);
+        });
+
+        if (demoFiltered.length === 0) {
+            container.innerHTML =
+                '<div style="text-align: center; padding: 40px; color: var(--text-muted);">' +
+                '<div style="font-size: 48px; margin-bottom: 8px;">&#128203;</div>' +
+                '<p>No demo reports match these filters.</p></div>';
+            loadMoreContainer.style.display = "none";
+            return;
+        }
+
+        var html = demoFiltered.map(renderReport).join("");
+        container.innerHTML = html;
+        loadMoreContainer.style.display = "none";
+        attachHandlers();
+        return;
+    }
+
     if (reset) {
         container.innerHTML =
             '<div style="text-align: center; padding: 40px; color: var(--text-muted);">' +
@@ -218,7 +258,7 @@ function loadFeed(reset) {
             if (reset && reports.length === 0) {
                 container.innerHTML =
                     '<div style="text-align: center; padding: 40px; color: var(--text-muted);">' +
-                    '<div style="font-size: 48px; margin-bottom: 8px;">📋</div>' +
+                    '<div style="font-size: 48px; margin-bottom: 8px;">&#128203;</div>' +
                     '<p>No reports yet. <a href="index.html" style="color: var(--district-green); font-weight: 600;">Submit one</a> to get started.</p>' +
                     '</div>';
                 loadMoreContainer.style.display = "none";
@@ -292,5 +332,6 @@ document.getElementById("filter-category").addEventListener("change", function (
 document.getElementById("load-more-btn").addEventListener("click", function () { loadFeed(false); });
 
 /* ---- Init ---- */
+if (typeof initDemoToggle === "function") initDemoToggle();
 loadTimeLostHero();
 loadFeed(true);

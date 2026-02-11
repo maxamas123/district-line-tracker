@@ -92,9 +92,10 @@ function renderBarChart(containerId, data, colorClass) {
 }
 
 
-/* ---- Dual-row bar chart (reports + time lost side by side) ---- */
+/* ---- SVG vertical bar chart with line overlay ---- */
+/* Bars = time lost (left axis), Line = report count (right axis) */
 
-function renderDualBarChart(containerId, data) {
+function renderVerticalChart(containerId, data) {
     var container = document.getElementById(containerId);
     if (!container) return;
 
@@ -103,69 +104,146 @@ function renderDualBarChart(containerId, data) {
         return;
     }
 
-    var maxReports = Math.max.apply(null, data.map(function (d) { return d.reports; }));
     var maxTimeLost = Math.max.apply(null, data.map(function (d) { return d.timeLost; }));
-    if (maxReports === 0) maxReports = 1;
+    var maxReports = Math.max.apply(null, data.map(function (d) { return d.reports; }));
     if (maxTimeLost === 0) maxTimeLost = 1;
+    if (maxReports === 0) maxReports = 1;
 
-    var html = '<div style="display: flex; gap: 6px; margin-bottom: 10px; font-size: 11px; color: var(--text-muted);">' +
-        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--district-green); display: inline-block;"></span> Reports</span>' +
-        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--red); display: inline-block;"></span> Time lost</span>' +
-    '</div>';
+    // Round up axes for nice grid lines
+    var yMaxLeft = Math.ceil(maxTimeLost / 30) * 30;
+    if (yMaxLeft < 30) yMaxLeft = 30;
+    var yMaxRight = Math.ceil(maxReports / 2) * 2;
+    if (yMaxRight < 2) yMaxRight = 2;
 
-    for (var i = 0; i < data.length; i++) {
-        var d = data[i];
-        var reportPct = (d.reports / maxReports * 100).toFixed(1);
-        var timePct = (d.timeLost / maxTimeLost * 100).toFixed(1);
+    // SVG dimensions
+    var svgW = 560;
+    var svgH = 220;
+    var padL = 50;   // left axis label space
+    var padR = 38;   // right axis label space
+    var padT = 12;
+    var padB = 32;   // x-axis labels
+    var chartW = svgW - padL - padR;
+    var chartH = svgH - padT - padB;
 
-        html +=
-            '<div style="margin-bottom: 12px;">' +
-                '<div style="font-size: 12px; font-weight: 700; margin-bottom: 4px; color: var(--text);">' + escapeHtml(d.label) + '</div>' +
-                '<div class="bar-row" style="margin-bottom: 2px;">' +
-                    '<div class="bar-track">' +
-                        '<div class="bar-fill green" style="width: ' + reportPct + '%"></div>' +
-                    '</div>' +
-                    '<div class="bar-value">' + d.reports + '</div>' +
-                '</div>' +
-                '<div class="bar-row">' +
-                    '<div class="bar-track">' +
-                        '<div class="bar-fill red" style="width: ' + timePct + '%"></div>' +
-                    '</div>' +
-                    '<div class="bar-value">' + formatHours(d.timeLost) + '</div>' +
-                '</div>' +
-            '</div>';
+    var n = data.length;
+    var barGap = 4;
+    var barW = Math.max(16, Math.floor((chartW - (n - 1) * barGap) / n));
+    // Recalculate chartW to center nicely
+    var totalBarsW = n * barW + (n - 1) * barGap;
+
+    // Start building SVG
+    var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width: 100%; height: auto; display: block; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">';
+
+    // Horizontal grid lines (4 lines)
+    var gridSteps = 4;
+    for (var g = 0; g <= gridSteps; g++) {
+        var gy = padT + chartH - (g / gridSteps * chartH);
+        svg += '<line x1="' + padL + '" y1="' + gy + '" x2="' + (padL + totalBarsW) + '" y2="' + gy + '" stroke="#E8E8E8" stroke-width="1"/>';
+
+        // Left axis labels (time lost in mins)
+        var leftVal = Math.round(yMaxLeft * g / gridSteps);
+        svg += '<text x="' + (padL - 6) + '" y="' + (gy + 3) + '" text-anchor="end" font-size="10" fill="#6C757D">' + leftVal + '</text>';
+
+        // Right axis labels (report count)
+        var rightVal = Math.round(yMaxRight * g / gridSteps * 10) / 10;
+        if (rightVal === Math.floor(rightVal)) rightVal = Math.floor(rightVal);
+        svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (gy + 3) + '" text-anchor="start" font-size="10" fill="#3A5F8F">' + rightVal + '</text>';
     }
 
-    container.innerHTML = html;
+    // Axis titles
+    svg += '<text x="' + (padL - 6) + '" y="' + (padT - 2) + '" text-anchor="end" font-size="9" fill="#DC3545" font-weight="600">mins</text>';
+    svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (padT - 2) + '" text-anchor="start" font-size="9" fill="#3A5F8F" font-weight="600">reports</text>';
+
+    // Bars (time lost)
+    for (var i = 0; i < n; i++) {
+        var d = data[i];
+        var barH = d.timeLost > 0 ? Math.max(2, d.timeLost / yMaxLeft * chartH) : 0;
+        var bx = padL + i * (barW + barGap);
+        var by = padT + chartH - barH;
+
+        if (barH > 0) {
+            svg += '<rect x="' + bx + '" y="' + by + '" width="' + barW + '" height="' + barH + '" rx="3" fill="#DC3545" opacity="0.75"/>';
+            // Value on top of bar
+            if (d.timeLost > 0) {
+                svg += '<text x="' + (bx + barW / 2) + '" y="' + (by - 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#DC3545">' + d.timeLost + '</text>';
+            }
+        }
+
+        // X-axis label
+        svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH + 14) + '" text-anchor="middle" font-size="10" font-weight="600" fill="#1A1A2E">' + escapeHtml(d.label) + '</text>';
+    }
+
+    // Line (reports count) — plotted against right axis
+    var linePoints = [];
+    for (var j = 0; j < n; j++) {
+        var lx = padL + j * (barW + barGap) + barW / 2;
+        var ly = padT + chartH - (data[j].reports / yMaxRight * chartH);
+        linePoints.push(lx + "," + ly);
+    }
+
+    if (linePoints.length > 1) {
+        svg += '<polyline points="' + linePoints.join(" ") + '" fill="none" stroke="#1A56A8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    }
+
+    // Dots on the line
+    for (var k = 0; k < n; k++) {
+        var dx = padL + k * (barW + barGap) + barW / 2;
+        var dy = padT + chartH - (data[k].reports / yMaxRight * chartH);
+        svg += '<circle cx="' + dx + '" cy="' + dy + '" r="4" fill="#1A56A8" stroke="white" stroke-width="1.5"/>';
+        // Report count label above dot
+        if (data[k].reports > 0) {
+            svg += '<text x="' + dx + '" y="' + (dy - 7) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#1A56A8">' + data[k].reports + '</text>';
+        }
+    }
+
+    svg += '</svg>';
+
+    // Legend
+    var legend = '<div style="display: flex; gap: 14px; margin-bottom: 8px; font-size: 11px; color: var(--text-muted);">' +
+        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #DC3545; opacity: 0.75; display: inline-block;"></span> Time lost (mins)</span>' +
+        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 3px; background: #1A56A8; display: inline-block; border-radius: 2px;"></span> Reports</span>' +
+    '</div>';
+
+    container.innerHTML = legend + svg;
 }
 
 
 /* ---- Load all dashboard data ---- */
 
 function loadDashboard() {
+    // Demo mode: use static dummy data
+    if (typeof isDemoMode === "function" && isDemoMode()) {
+        renderDashboard(DEMO_REPORTS);
+        return;
+    }
+
     supabaseSelect("reports", "order=incident_date.desc")
         .then(function (reports) {
-            if (reports.length === 0) {
-                document.getElementById("stats-grid").innerHTML =
-                    '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted);">' +
-                    '<p>No reports yet. <a href="index.html" style="color: var(--district-green); font-weight: 600;">Submit one</a> to get started.</p></div>';
-                return;
-            }
-
-            buildTimeLostHero(reports);
-            buildStatsGrid(reports);
-            buildWeeklyChart(reports);
-            buildMonthlyChart(reports);
-            buildDayOfWeekChart(reports);
-            buildTimeOfDayChart(reports);
-            buildStationChart(reports);
-            buildCategoryChart(reports);
-            buildDiscrepancyStats(reports);
+            renderDashboard(reports);
         })
         .catch(function () {
             document.getElementById("stats-grid").innerHTML =
                 '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted);"><p>Could not load data.</p></div>';
         });
+}
+
+function renderDashboard(reports) {
+    if (reports.length === 0) {
+        document.getElementById("stats-grid").innerHTML =
+            '<div style="grid-column: 1 / -1; text-align: center; padding: 32px; color: var(--text-muted);">' +
+            '<p>No reports yet. <a href="index.html" style="color: var(--district-green); font-weight: 600;">Submit one</a> to get started.</p></div>';
+        return;
+    }
+
+    buildTimeLostHero(reports);
+    buildStatsGrid(reports);
+    buildWeeklyChart(reports);
+    buildMonthlyChart(reports);
+    buildDayOfWeekChart(reports);
+    buildTimeOfDayChart(reports);
+    buildStationChart(reports);
+    buildCategoryChart(reports);
+    buildDiscrepancyStats(reports);
 }
 
 
@@ -313,7 +391,7 @@ function buildDayOfWeekChart(reports) {
         };
     });
 
-    renderDualBarChart("day-of-week-chart", data);
+    renderVerticalChart("day-of-week-chart", data);
 }
 
 
@@ -355,7 +433,7 @@ function buildTimeOfDayChart(reports) {
         });
     }
 
-    renderDualBarChart("time-of-day-chart", data);
+    renderVerticalChart("time-of-day-chart", data);
 }
 
 
@@ -448,4 +526,5 @@ function togglePatterns() {
 
 
 /* ---- Init ---- */
+if (typeof initDemoToggle === "function") initDemoToggle();
 loadDashboard();

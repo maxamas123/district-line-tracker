@@ -265,6 +265,34 @@ function doUpvote(reportId, btnEl) {
 
     var alreadyVoted = hasUpvoted(reportId);
 
+    // Demo mode: toggle UI only, no Supabase calls
+    if (typeof isDemoMode === "function" && isDemoMode()) {
+        var countEl = btnEl.querySelector(".upvote-count");
+        var currentCount = countEl ? parseInt(countEl.textContent, 10) || 0 : 0;
+
+        if (alreadyVoted) {
+            var newCount = Math.max(0, currentCount - 1);
+            markUnvoted(reportId);
+            btnEl.innerHTML = '&#128077; Me too <span class="upvote-count">' + newCount + '</span>';
+            btnEl.classList.remove("voted");
+            btnEl.title = "Tap if you experienced this too";
+            updateAffectedStats(reportId, newCount, btnEl);
+            showToast("Your confirmation has been removed (demo)", "success");
+        } else {
+            var newCount = currentCount + 1;
+            markUpvoted(reportId);
+            btnEl.innerHTML = '&#10003; Confirmed <span class="upvote-count">' + newCount + '</span>';
+            btnEl.classList.add("voted");
+            btnEl.title = "Tap again to remove your confirmation";
+            updateAffectedStats(reportId, newCount, btnEl);
+            showToast("Confirmed (demo) — your time lost has been added", "success");
+        }
+
+        btnEl.disabled = false;
+        btnEl.style.opacity = "";
+        return;
+    }
+
     if (alreadyVoted) {
         // Toggle OFF: remove upvote
         supabaseRpc("downvote_report", { report_id: reportId })
