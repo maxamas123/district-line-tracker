@@ -545,6 +545,12 @@ function showEditModal(report) {
                 p_delay_minutes: updated.delay_minutes,
                 p_description: updated.description,
                 p_reporter_name: updated.reporter_name
+            }).catch(function (rpcErr) {
+                // Fallback if RPC not yet available (migration not run)
+                if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
+                    return supabaseUpdate("reports", report.id, updated);
+                }
+                throw rpcErr;
             });
         } else {
             // Legacy report without token — use direct update
@@ -616,6 +622,12 @@ function showDeleteConfirm(reportId) {
             deletePromise = supabaseRpc("delete_report", {
                 p_report_id: reportId,
                 p_owner_token: ownerToken
+            }).catch(function (rpcErr) {
+                // Fallback if RPC not yet available (migration not run)
+                if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
+                    return supabaseDelete("reports", reportId);
+                }
+                throw rpcErr;
             });
         } else {
             // Legacy report without token — use direct delete
