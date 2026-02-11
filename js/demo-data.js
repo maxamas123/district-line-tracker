@@ -1,5 +1,5 @@
 /*
- * District Line Tracker - demo-data.js
+ * Fix The District - demo-data.js
  * Realistic dummy data for demo mode. Toggle on from Feed or Dashboard.
  * Patterns: heavier weekday/peak reporting, realistic delays, TfL discrepancies.
  */

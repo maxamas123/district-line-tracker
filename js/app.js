@@ -1,5 +1,5 @@
 /*
- * District Line Tracker - app.js
+ * Fix The District - app.js
  * Minimal vanilla JS: Supabase, TfL status, rate limiting, upvotes, edit.
  * No frameworks, no libraries.
  *
@@ -346,8 +346,8 @@ function showInfoModal() {
         '<div class="info-modal">' +
             '<h3>How is "time lost" calculated?</h3>' +
             '<p>Each report includes an estimated delay in minutes. When you tap <strong>"Me too"</strong> on someone else\'s report, you\'re confirming you experienced the same delay.</p>' +
-            '<p>We multiply the reported delay by the number of people affected (the original reporter + everyone who tapped "Me too") to calculate total commuter time lost.</p>' +
-            '<p>For example: a 15-minute delay confirmed by 4 additional commuters = 15 &times; 5 = <strong>75 person-minutes (1 hr 15 min)</strong> of collective time wasted.</p>' +
+            '<p>We multiply the reported delay by the number of people affected (the original reporter + everyone who tapped "Me too") to calculate total passenger time lost.</p>' +
+            '<p>For example: a 15-minute delay confirmed by 4 additional passengers = 15 &times; 5 = <strong>75 person-minutes (1 hr 15 min)</strong> of collective time wasted.</p>' +
             '<p>This gives TfL, MPs, and the media a real sense of the cumulative human cost of poor service.</p>' +
             '<button class="close-modal" onclick="this.closest(\'.info-modal-overlay\').remove()">Got it</button>' +
         '</div>';

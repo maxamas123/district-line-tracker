@@ -1,5 +1,5 @@
 /*
- * District Line Tracker - feed.js
+ * Fix The District - feed.js
  * Loads report feed with toggleable upvotes, edit for own reports,
  * and time-lost tally. Vanilla JS, no frameworks.
  */
@@ -70,7 +70,7 @@ function renderTimeLostHero(reports) {
     heroEl.innerHTML =
         '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
         '<div class="big-label">' +
-            'total commuter time lost' +
+            'total passenger time lost' +
             '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
         '</div>' +
         '<div class="sub-stats">' +

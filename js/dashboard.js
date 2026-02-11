@@ -1,5 +1,5 @@
 /*
- * District Line Tracker - dashboard.js
+ * Fix The District - dashboard.js
  * Dashboard with CSS bar charts, time-lost breakdowns, day/time patterns,
  * and TfL discrepancy analysis. Vanilla JS, no chart libraries.
  */
@@ -92,8 +92,8 @@ function renderBarChart(containerId, data, colorClass) {
 }
 
 
-/* ---- SVG vertical bar chart with line overlay ---- */
-/* Bars = time lost (left axis), Line = report count (right axis) */
+/* ---- SVG vertical bar chart with line overlays ---- */
+/* Bars = time lost (left axis), Lines = reports + people affected (right axis) */
 
 function renderVerticalChart(containerId, data) {
     var container = document.getElementById(containerId);
@@ -106,21 +106,25 @@ function renderVerticalChart(containerId, data) {
 
     var maxTimeLost = Math.max.apply(null, data.map(function (d) { return d.timeLost; }));
     var maxReports = Math.max.apply(null, data.map(function (d) { return d.reports; }));
+    var maxPeople = Math.max.apply(null, data.map(function (d) { return d.peopleAffected || 0; }));
     if (maxTimeLost === 0) maxTimeLost = 1;
     if (maxReports === 0) maxReports = 1;
+    if (maxPeople === 0) maxPeople = 1;
 
     // Round up axes for nice grid lines
     var yMaxLeft = Math.ceil(maxTimeLost / 30) * 30;
     if (yMaxLeft < 30) yMaxLeft = 30;
-    var yMaxRight = Math.ceil(maxReports / 2) * 2;
-    if (yMaxRight < 2) yMaxRight = 2;
+    // Right axis: scale to whichever is larger — people affected or reports
+    var maxRightRaw = Math.max(maxReports, maxPeople);
+    var yMaxRight = Math.ceil(maxRightRaw / 5) * 5;
+    if (yMaxRight < 5) yMaxRight = 5;
 
-    // SVG dimensions
+    // SVG dimensions — extra top padding for axis titles
     var svgW = 560;
-    var svgH = 220;
+    var svgH = 240;
     var padL = 50;   // left axis label space
-    var padR = 38;   // right axis label space
-    var padT = 12;
+    var padR = 42;   // right axis label space
+    var padT = 28;   // room for axis titles above chart
     var padB = 32;   // x-axis labels
     var chartW = svgW - padL - padR;
     var chartH = svgH - padT - padB;
@@ -128,13 +132,16 @@ function renderVerticalChart(containerId, data) {
     var n = data.length;
     var barGap = 4;
     var barW = Math.max(16, Math.floor((chartW - (n - 1) * barGap) / n));
-    // Recalculate chartW to center nicely
     var totalBarsW = n * barW + (n - 1) * barGap;
 
     // Start building SVG
     var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width: 100%; height: auto; display: block; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">';
 
-    // Horizontal grid lines (4 lines)
+    // Axis titles (above the chart area, clear of numbers)
+    svg += '<text x="' + (padL - 6) + '" y="' + (padT - 14) + '" text-anchor="end" font-size="10" fill="#DC3545" font-weight="600">mins lost</text>';
+    svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (padT - 14) + '" text-anchor="start" font-size="10" fill="#6C757D" font-weight="600">people</text>';
+
+    // Horizontal grid lines (4 steps)
     var gridSteps = 4;
     for (var g = 0; g <= gridSteps; g++) {
         var gy = padT + chartH - (g / gridSteps * chartH);
@@ -142,17 +149,12 @@ function renderVerticalChart(containerId, data) {
 
         // Left axis labels (time lost in mins)
         var leftVal = Math.round(yMaxLeft * g / gridSteps);
-        svg += '<text x="' + (padL - 6) + '" y="' + (gy + 3) + '" text-anchor="end" font-size="10" fill="#6C757D">' + leftVal + '</text>';
+        svg += '<text x="' + (padL - 6) + '" y="' + (gy + 4) + '" text-anchor="end" font-size="10" fill="#6C757D">' + leftVal + '</text>';
 
-        // Right axis labels (report count)
-        var rightVal = Math.round(yMaxRight * g / gridSteps * 10) / 10;
-        if (rightVal === Math.floor(rightVal)) rightVal = Math.floor(rightVal);
-        svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (gy + 3) + '" text-anchor="start" font-size="10" fill="#3A5F8F">' + rightVal + '</text>';
+        // Right axis labels (people / reports count)
+        var rightVal = Math.round(yMaxRight * g / gridSteps);
+        svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (gy + 4) + '" text-anchor="start" font-size="10" fill="#6C757D">' + rightVal + '</text>';
     }
-
-    // Axis titles
-    svg += '<text x="' + (padL - 6) + '" y="' + (padT - 2) + '" text-anchor="end" font-size="9" fill="#DC3545" font-weight="600">mins</text>';
-    svg += '<text x="' + (padL + totalBarsW + 6) + '" y="' + (padT - 2) + '" text-anchor="start" font-size="9" fill="#3A5F8F" font-weight="600">reports</text>';
 
     // Bars (time lost)
     for (var i = 0; i < n; i++) {
@@ -165,43 +167,61 @@ function renderVerticalChart(containerId, data) {
             svg += '<rect x="' + bx + '" y="' + by + '" width="' + barW + '" height="' + barH + '" rx="3" fill="#DC3545" opacity="0.75"/>';
             // Value on top of bar
             if (d.timeLost > 0) {
-                svg += '<text x="' + (bx + barW / 2) + '" y="' + (by - 3) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#DC3545">' + d.timeLost + '</text>';
+                svg += '<text x="' + (bx + barW / 2) + '" y="' + (by - 4) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#DC3545">' + d.timeLost + '</text>';
             }
         }
 
         // X-axis label
-        svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH + 14) + '" text-anchor="middle" font-size="10" font-weight="600" fill="#1A1A2E">' + escapeHtml(d.label) + '</text>';
+        svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH + 16) + '" text-anchor="middle" font-size="10" font-weight="600" fill="#1A1A2E">' + escapeHtml(d.label) + '</text>';
     }
 
-    // Line (reports count) — plotted against right axis
-    var linePoints = [];
+    // --- Line 1: Reports count (blue) — plotted against right axis ---
+    var reportPoints = [];
     for (var j = 0; j < n; j++) {
-        var lx = padL + j * (barW + barGap) + barW / 2;
-        var ly = padT + chartH - (data[j].reports / yMaxRight * chartH);
-        linePoints.push(lx + "," + ly);
+        var rx = padL + j * (barW + barGap) + barW / 2;
+        var ry = padT + chartH - (data[j].reports / yMaxRight * chartH);
+        reportPoints.push(rx + "," + ry);
     }
-
-    if (linePoints.length > 1) {
-        svg += '<polyline points="' + linePoints.join(" ") + '" fill="none" stroke="#1A56A8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
+    if (reportPoints.length > 1) {
+        svg += '<polyline points="' + reportPoints.join(" ") + '" fill="none" stroke="#1A56A8" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>';
     }
-
-    // Dots on the line
+    // Dots + labels for reports
     for (var k = 0; k < n; k++) {
-        var dx = padL + k * (barW + barGap) + barW / 2;
-        var dy = padT + chartH - (data[k].reports / yMaxRight * chartH);
-        svg += '<circle cx="' + dx + '" cy="' + dy + '" r="4" fill="#1A56A8" stroke="white" stroke-width="1.5"/>';
-        // Report count label above dot
-        if (data[k].reports > 0) {
-            svg += '<text x="' + dx + '" y="' + (dy - 7) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#1A56A8">' + data[k].reports + '</text>';
+        var rdx = padL + k * (barW + barGap) + barW / 2;
+        var rdy = padT + chartH - (data[k].reports / yMaxRight * chartH);
+        svg += '<circle cx="' + rdx + '" cy="' + rdy + '" r="3.5" fill="#1A56A8" stroke="white" stroke-width="1.5"/>';
+    }
+
+    // --- Line 2: People affected (green) — plotted against right axis ---
+    var peoplePoints = [];
+    for (var m = 0; m < n; m++) {
+        var pa = data[m].peopleAffected || 0;
+        var px = padL + m * (barW + barGap) + barW / 2;
+        var py = padT + chartH - (pa / yMaxRight * chartH);
+        peoplePoints.push(px + "," + py);
+    }
+    if (peoplePoints.length > 1) {
+        svg += '<polyline points="' + peoplePoints.join(" ") + '" fill="none" stroke="#00843D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6,3"/>';
+    }
+    // Dots + labels for people affected
+    for (var p = 0; p < n; p++) {
+        var pa2 = data[p].peopleAffected || 0;
+        var pdx = padL + p * (barW + barGap) + barW / 2;
+        var pdy = padT + chartH - (pa2 / yMaxRight * chartH);
+        svg += '<circle cx="' + pdx + '" cy="' + pdy + '" r="3.5" fill="#00843D" stroke="white" stroke-width="1.5"/>';
+        // People affected label (only show if different from reports to avoid overlap)
+        if (pa2 > 0 && pa2 !== data[p].reports) {
+            svg += '<text x="' + pdx + '" y="' + (pdy - 7) + '" text-anchor="middle" font-size="9" font-weight="700" fill="#00843D">' + pa2 + '</text>';
         }
     }
 
     svg += '</svg>';
 
     // Legend
-    var legend = '<div style="display: flex; gap: 14px; margin-bottom: 8px; font-size: 11px; color: var(--text-muted);">' +
+    var legend = '<div style="display: flex; gap: 12px; margin-bottom: 8px; font-size: 11px; color: var(--text-muted); flex-wrap: wrap;">' +
         '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: #DC3545; opacity: 0.75; display: inline-block;"></span> Time lost (mins)</span>' +
         '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 3px; background: #1A56A8; display: inline-block; border-radius: 2px;"></span> Reports</span>' +
+        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 14px; height: 0; border-top: 2.5px dashed #00843D; display: inline-block;"></span> People affected</span>' +
     '</div>';
 
     container.innerHTML = legend + svg;
@@ -272,7 +292,7 @@ function buildTimeLostHero(reports) {
     heroEl.innerHTML =
         '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
         '<div class="big-label">' +
-            'total commuter time lost' +
+            'total passenger time lost' +
             '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
         '</div>' +
         '<div class="sub-stats">' +
@@ -365,20 +385,23 @@ function buildDayOfWeekChart(reports) {
     var dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon=1 through Sun=0
     var dayReports = {};
     var dayTimeLost = {};
+    var dayPeopleAffected = {};
 
     for (var i = 0; i < 7; i++) {
         dayReports[i] = 0;
         dayTimeLost[i] = 0;
+        dayPeopleAffected[i] = 0;
     }
 
     for (var j = 0; j < reports.length; j++) {
         var r = reports[j];
         var d = new Date(r.incident_date + "T00:00:00");
         var dow = d.getDay(); // 0=Sun, 1=Mon, ...
+        var people = 1 + (r.upvotes || 0);
         dayReports[dow]++;
+        dayPeopleAffected[dow] += people;
 
         if (r.delay_minutes && r.delay_minutes > 0) {
-            var people = 1 + (r.upvotes || 0);
             dayTimeLost[dow] += r.delay_minutes * people;
         }
     }
@@ -387,7 +410,8 @@ function buildDayOfWeekChart(reports) {
         return {
             label: DAY_NAMES[dow],
             reports: dayReports[dow],
-            timeLost: dayTimeLost[dow]
+            timeLost: dayTimeLost[dow],
+            peopleAffected: dayPeopleAffected[dow]
         };
     });
 
@@ -400,10 +424,12 @@ function buildDayOfWeekChart(reports) {
 function buildTimeOfDayChart(reports) {
     var bandReports = {};
     var bandTimeLost = {};
+    var bandPeopleAffected = {};
 
     for (var i = 0; i < TIME_BANDS.length; i++) {
         bandReports[i] = 0;
         bandTimeLost[i] = 0;
+        bandPeopleAffected[i] = 0;
     }
 
     for (var j = 0; j < reports.length; j++) {
@@ -411,12 +437,14 @@ function buildTimeOfDayChart(reports) {
         var hour = getHourFromTime(r.incident_time);
         if (hour < 0) continue;
 
+        var people = 1 + (r.upvotes || 0);
+
         // Find which band this falls into
         for (var b = 0; b < TIME_BANDS.length; b++) {
             if (hour >= TIME_BANDS[b].min && hour < TIME_BANDS[b].max) {
                 bandReports[b]++;
+                bandPeopleAffected[b] += people;
                 if (r.delay_minutes && r.delay_minutes > 0) {
-                    var people = 1 + (r.upvotes || 0);
                     bandTimeLost[b] += r.delay_minutes * people;
                 }
                 break;
@@ -429,7 +457,8 @@ function buildTimeOfDayChart(reports) {
         data.push({
             label: TIME_BANDS[k].label,
             reports: bandReports[k],
-            timeLost: bandTimeLost[k]
+            timeLost: bandTimeLost[k],
+            peopleAffected: bandPeopleAffected[k]
         });
     }
 
