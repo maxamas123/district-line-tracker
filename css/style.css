@@ -390,10 +390,174 @@ textarea {
     text-decoration: none;
 }
 
+/* ---- Upvote button ---- */
+
+.upvote-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.upvote-btn:hover { border-color: var(--district-green); color: var(--district-green); }
+
+.upvote-btn.voted {
+    border-color: var(--district-green);
+    color: var(--district-green);
+    background: var(--district-light);
+    cursor: default;
+}
+
+/* ---- Time lost hero ---- */
+
+.time-lost-hero {
+    background: linear-gradient(135deg, #1A1A2E, #2D2D44);
+    color: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.time-lost-hero .big-number { font-size: 48px; font-weight: 800; line-height: 1.1; color: #FF6B6B; }
+.time-lost-hero .big-label { font-size: 13px; opacity: 0.8; margin-top: 4px; font-weight: 600; }
+
+.time-lost-hero .sub-stats {
+    display: flex;
+    justify-content: center;
+    gap: 24px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.time-lost-hero .sub-stat-value { font-size: 22px; font-weight: 700; }
+.time-lost-hero .sub-stat-label { font-size: 11px; opacity: 0.7; }
+
+/* ---- Info modal ---- */
+
+.info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    font-size: 11px; font-weight: 700;
+    border: none; cursor: pointer;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.info-modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 300;
+    display: flex; align-items: center; justify-content: center;
+    padding: 20px;
+}
+
+.info-modal {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 400px; width: 100%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    color: var(--text);
+}
+
+.info-modal h3 { font-size: 16px; margin-bottom: 12px; }
+.info-modal p { font-size: 14px; line-height: 1.6; margin-bottom: 8px; color: var(--text-muted); }
+
+.info-modal .close-modal {
+    display: block; margin-top: 16px; padding: 8px 16px;
+    background: var(--district-green); color: white;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit; width: 100%;
+}
+
+/* ---- CSS Bar charts ---- */
+
+.bar-chart { display: flex; flex-direction: column; gap: 8px; }
+
+.bar-row { display: flex; align-items: center; gap: 8px; }
+
+.bar-label {
+    width: 80px; font-size: 12px; font-weight: 600;
+    text-align: right; flex-shrink: 0; color: var(--text);
+}
+
+.bar-track {
+    flex: 1; height: 24px;
+    background: var(--bg); border-radius: 4px; overflow: hidden;
+}
+
+.bar-fill {
+    height: 100%; border-radius: 4px;
+    transition: width 0.6s ease; min-width: 2px;
+}
+
+.bar-fill.green { background: var(--district-green); }
+.bar-fill.red { background: var(--red); }
+.bar-fill.amber { background: var(--amber); }
+
+.bar-value { width: 52px; font-size: 12px; font-weight: 700; color: var(--text); flex-shrink: 0; }
+
+/* ---- Stats grid ---- */
+
+.stats-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 12px; margin-bottom: 16px;
+}
+
+.stat-card {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px; text-align: center;
+}
+
+.stat-card .stat-value { font-size: 28px; font-weight: 800; color: var(--district-green); line-height: 1.2; }
+.stat-card .stat-value.danger { color: var(--red); }
+.stat-card .stat-value.warn { color: var(--amber); }
+.stat-card .stat-label {
+    font-size: 11px; color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-top: 4px;
+}
+
+/* ---- Site footer sections ---- */
+
+.site-footer { max-width: 600px; margin: 0 auto; padding: 20px 16px 32px; }
+
+.footer-section {
+    background: var(--card); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 20px; margin-bottom: 12px;
+}
+
+.footer-section h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.footer-section p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+.footer-section a { color: var(--district-green); text-decoration: none; }
+
+/* ---- Rate limit notice ---- */
+
+.rate-limit-notice {
+    background: #FFF3CD; border: 1px solid #FFECB5; color: #856404;
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    margin-bottom: 16px; display: none;
+}
+
 /* ---- Responsive ---- */
 
 @media (min-width: 600px) {
-    .container {
-        padding: 24px;
-    }
+    .container { padding: 24px; }
+    .stats-grid { grid-template-columns: repeat(4, 1fr); }
+    .bar-label { width: 100px; }
 }

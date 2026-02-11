@@ -111,6 +111,9 @@
                 <input type="text" id="reporter_name" name="reporter_name" placeholder="Anonymous">
             </div>
 
+            <!-- Rate limit notice -->
+            <div id="rate-limit-notice" class="rate-limit-notice"></div>
+
             <button type="submit" id="submit-btn" class="btn btn-primary">
                 Submit Report
             </button>
@@ -121,10 +124,19 @@
 
     </main>
 
-    <footer class="footer">
-        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
-        <p>TfL status via <a href="https://api.tfl.gov.uk" target="_blank" rel="noopener">TfL Open Data</a>.</p>
-    </footer>
+    <div class="site-footer">
+        <div class="footer-section">
+            <h4>What we hope to show</h4>
+            <p>This project exists to document the real experience of commuters on the District Line Wimbledon branch and hold TfL accountable for the service they provide. Specifically, we aim to show that TfL's own status reports frequently say "Good Service" when commuters are experiencing significant delays, cancellations, and overcrowding. By collating timestamped reports alongside TfL's live API data, we can demonstrate these discrepancies with hard evidence — and present that evidence to our local MP, TfL, and the Department for Transport to push for the signalling upgrades and investment this line desperately needs.</p>
+        </div>
+        <div class="footer-section">
+            <h4>Your data and privacy</h4>
+            <p>Your name will only be displayed on reports if you choose to include it — by doing so, you give us permission to show it publicly on this site. If you leave the name field blank, your report appears as "Anonymous". We only collect and store the information you submit (station, time, delay, description) for the sole purpose of collating evidence to improve District Line service and increase investment. We do not share your data with third parties or use it for any other purpose. All data may be included in reports shared with your local MP and TfL.</p>
+        </div>
+        <div class="footer-section" style="text-align: center;">
+            <p>Built by Wimbledon branch commuters. TfL status via <a href="https://api.tfl.gov.uk" target="_blank" rel="noopener">TfL Open Data</a>.</p>
+        </div>
+    </div>
 
     <!-- Toast -->
     <div id="toast" class="toast"></div>

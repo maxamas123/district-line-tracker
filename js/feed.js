@@ -1,6 +1,6 @@
 /*
  * District Line Tracker - feed.js
- * Loads and renders the report feed from Supabase.
+ * Loads report feed with upvotes and time-lost tally.
  * Vanilla JS, no frameworks.
  */
 
@@ -25,6 +25,78 @@ function badgeClass(category, delayMins) {
     return "info";
 }
 
+function formatHours(totalMinutes) {
+    if (totalMinutes < 60) return totalMinutes + " min";
+    var hrs = Math.floor(totalMinutes / 60);
+    var mins = Math.round(totalMinutes % 60);
+    if (mins === 0) return hrs + " hr" + (hrs > 1 ? "s" : "");
+    return hrs + " hr" + (hrs > 1 ? "s" : "") + " " + mins + " min";
+}
+
+
+/* ---- Time lost hero ---- */
+
+function loadTimeLostHero() {
+    var heroEl = document.getElementById("time-lost-hero");
+    if (!heroEl) return;
+
+    // Fetch all reports to calculate time lost
+    supabaseSelect("reports", "select=delay_minutes,upvotes,incident_date&order=incident_date.desc")
+        .then(function (reports) {
+            var totalMinutes = 0;
+            var thisWeekMinutes = 0;
+            var thisMonthMinutes = 0;
+            var totalReports = reports.length;
+            var discrepancyCount = 0;
+
+            var now = new Date();
+            var weekAgo = new Date(now - 7 * 86400000);
+            var monthAgo = new Date(now - 30 * 86400000);
+
+            for (var i = 0; i < reports.length; i++) {
+                var r = reports[i];
+                if (!r.delay_minutes || r.delay_minutes <= 0) continue;
+
+                // Time lost = delay * (1 reporter + upvotes)
+                var peopleLost = 1 + (r.upvotes || 0);
+                var minutesLost = r.delay_minutes * peopleLost;
+
+                totalMinutes += minutesLost;
+
+                var d = new Date(r.incident_date + "T00:00:00");
+                if (d >= weekAgo) thisWeekMinutes += minutesLost;
+                if (d >= monthAgo) thisMonthMinutes += minutesLost;
+            }
+
+            heroEl.innerHTML =
+                '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
+                '<div class="big-label">' +
+                    'total commuter time lost' +
+                    '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
+                '</div>' +
+                '<div class="sub-stats">' +
+                    '<div>' +
+                        '<div class="sub-stat-value">' + formatHours(thisWeekMinutes) + '</div>' +
+                        '<div class="sub-stat-label">this week</div>' +
+                    '</div>' +
+                    '<div>' +
+                        '<div class="sub-stat-value">' + formatHours(thisMonthMinutes) + '</div>' +
+                        '<div class="sub-stat-label">this month</div>' +
+                    '</div>' +
+                    '<div>' +
+                        '<div class="sub-stat-value">' + totalReports + '</div>' +
+                        '<div class="sub-stat-label">reports</div>' +
+                    '</div>' +
+                '</div>';
+        })
+        .catch(function () {
+            heroEl.innerHTML = '<div class="big-label">Could not load time-lost data</div>';
+        });
+}
+
+
+/* ---- Render a single report ---- */
+
 function renderReport(r) {
     var severity = badgeClass(r.category, r.delay_minutes);
     var borderColor =
@@ -46,7 +118,25 @@ function renderReport(r) {
             '</div>';
     }
 
-    return '<div class="card" style="border-left: 4px solid ' + borderColor + '; padding: 16px;">' +
+    // Upvote button
+    var voted = hasUpvoted(r.id);
+    var upvoteClass = "upvote-btn" + (voted ? " voted" : "");
+    var upvoteTitle = voted ? "You've already confirmed this" : "Tap if you experienced this too";
+    var peopleLost = 1 + (r.upvotes || 0);
+    var timeLostStr = r.delay_minutes ? formatHours(r.delay_minutes * peopleLost) + " lost" : "";
+
+    var upvoteHtml =
+        '<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">' +
+            '<button class="' + upvoteClass + '" ' +
+                'data-report-id="' + r.id + '" ' +
+                'title="' + upvoteTitle + '"' +
+                (voted ? ' disabled' : '') + '>' +
+                '👍 Me too <span class="upvote-count">' + (r.upvotes || 0) + '</span>' +
+            '</button>' +
+            (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
+        '</div>';
+
+    return '<div class="card" style="border-left: 4px solid ' + borderColor + '; padding: 16px;" id="report-' + r.id + '">' +
         '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">' +
             '<strong style="font-size: 15px;">' + escapeHtml(r.station) + '</strong>' +
             '<span style="font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: ' + badgeBg + '; color: ' + badgeColor + ';">' +
@@ -57,12 +147,16 @@ function renderReport(r) {
             formatDate(r.incident_date) + ' at ' + escapeHtml(r.incident_time) +
             ' · ' + escapeHtml(r.direction) +
             (r.delay_minutes ? ' · <strong>' + r.delay_minutes + ' min delay</strong>' : '') +
-            ' · ' + escapeHtml(r.reporter_name || "Anonymous") +
+            (r.reporter_name && r.reporter_name !== "Anonymous" ? ' · ' + escapeHtml(r.reporter_name) : '') +
         '</div>' +
         (r.description ? '<div style="font-size: 14px;">' + escapeHtml(r.description) + '</div>' : '') +
         discrepancy +
+        upvoteHtml +
     '</div>';
 }
+
+
+/* ---- Load feed ---- */
 
 function loadFeed(reset) {
     if (reset) feedOffset = 0;
@@ -77,7 +171,6 @@ function loadFeed(reset) {
             '<p style="margin-top: 12px; font-size: 14px;">Loading reports...</p></div>';
     }
 
-    // Build query params
     var parts = ["order=incident_date.desc,incident_time.desc"];
     parts.push("limit=" + FEED_PAGE_SIZE);
     parts.push("offset=" + feedOffset);
@@ -109,12 +202,14 @@ function loadFeed(reset) {
 
             feedOffset += reports.length;
 
-            // Show/hide load more
             if (reports.length < FEED_PAGE_SIZE) {
                 loadMoreContainer.style.display = "none";
             } else {
                 loadMoreContainer.style.display = "block";
             }
+
+            // Attach upvote click handlers
+            attachUpvoteHandlers();
         })
         .catch(function () {
             if (reset) {
@@ -125,12 +220,24 @@ function loadFeed(reset) {
         });
 }
 
-// Filters
+function attachUpvoteHandlers() {
+    var buttons = document.querySelectorAll(".upvote-btn:not(.voted)");
+    for (var i = 0; i < buttons.length; i++) {
+        buttons[i].onclick = function () {
+            var id = this.getAttribute("data-report-id");
+            doUpvote(id, this);
+        };
+    }
+}
+
+
+/* ---- Filters ---- */
 document.getElementById("filter-station").addEventListener("change", function () { loadFeed(true); });
 document.getElementById("filter-category").addEventListener("change", function () { loadFeed(true); });
 
-// Load more
+/* ---- Load more ---- */
 document.getElementById("load-more-btn").addEventListener("click", function () { loadFeed(false); });
 
-// Init
+/* ---- Init ---- */
+loadTimeLostHero();
 loadFeed(true);

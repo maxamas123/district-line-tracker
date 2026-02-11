@@ -7,17 +7,6 @@
     <meta name="theme-color" content="#00843D">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        /* Dashboard-specific styles (Slice 3 - placeholder) */
-        .coming-soon {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-        .coming-soon .icon { font-size: 48px; margin-bottom: 12px; }
-        .coming-soon h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
-        .coming-soon p { font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6; }
-    </style>
 </head>
 <body>
 
@@ -36,16 +25,60 @@
     </nav>
 
     <main class="container">
-        <div class="card coming-soon">
-            <div class="icon">📊</div>
-            <h3>Dashboard coming soon</h3>
-            <p>Once we have enough reports (20+), this page will show charts, trends, station heatmaps, TfL discrepancy analysis, and AI-generated summaries you can share with your MP.</p>
-            <p style="margin-top: 12px;"><a href="index.html" style="color: var(--district-green); font-weight: 600; text-decoration: none;">Submit a report</a> to help build the data.</p>
+
+        <!-- Time lost hero -->
+        <div id="time-lost-hero" class="time-lost-hero">
+            <div class="big-label">Loading...</div>
         </div>
+
+        <!-- Stats grid -->
+        <div id="stats-grid" class="stats-grid"></div>
+
+        <!-- Time lost by week -->
+        <div class="card">
+            <div class="card-title">Time lost by week</div>
+            <div id="weekly-chart" class="bar-chart"></div>
+        </div>
+
+        <!-- Time lost by month -->
+        <div class="card">
+            <div class="card-title">Time lost by month</div>
+            <div id="monthly-chart" class="bar-chart"></div>
+        </div>
+
+        <!-- Reports by station -->
+        <div class="card">
+            <div class="card-title">Reports by station</div>
+            <div id="station-chart" class="bar-chart"></div>
+        </div>
+
+        <!-- Reports by category -->
+        <div class="card">
+            <div class="card-title">Issues by category</div>
+            <div id="category-chart" class="bar-chart"></div>
+        </div>
+
+        <!-- TfL discrepancy stats -->
+        <div class="card">
+            <div class="card-title">TfL status vs reality</div>
+            <div id="discrepancy-stats"></div>
+        </div>
+
     </main>
 
-    <footer class="footer">
-        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
-    </footer>
+    <div class="site-footer">
+        <div class="footer-section">
+            <h4>What we hope to show</h4>
+            <p>This project documents the real commuter experience on the Wimbledon branch and compares it against TfL's official status reports. We aim to demonstrate that TfL frequently reports "Good Service" while commuters experience significant delays — and use that evidence to push for investment.</p>
+        </div>
+        <div class="footer-section" style="text-align: center;">
+            <p>Built by Wimbledon branch commuters. TfL status via <a href="https://api.tfl.gov.uk" target="_blank" rel="noopener">TfL Open Data</a>.</p>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+    <script src="js/dashboard.js"></script>
 </body>
 </html>

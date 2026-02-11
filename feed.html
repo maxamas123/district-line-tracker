@@ -25,6 +25,11 @@
     </nav>
 
     <main class="container">
+        <!-- Time lost hero -->
+        <div id="time-lost-hero" class="time-lost-hero">
+            <div class="big-label">Loading time lost data...</div>
+        </div>
+
         <div class="card" style="padding: 12px 16px;">
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <select id="filter-station" style="flex: 1; min-width: 120px; padding: 8px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit;">
@@ -68,9 +73,15 @@
         </div>
     </main>
 
-    <footer class="footer">
-        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
-    </footer>
+    <div class="site-footer">
+        <div class="footer-section">
+            <h4>Your data and privacy</h4>
+            <p>Your name will only be displayed if you choose to include it. We only store data for the purpose of collating evidence to improve District Line service. Data may be shared with your local MP and TfL.</p>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
 
     <script src="js/app.js"></script>
     <script src="js/feed.js"></script>
