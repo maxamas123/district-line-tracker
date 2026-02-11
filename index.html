@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>District Line Tracker</title>
+    <meta name="description" content="Report and track delays on the District Line Wimbledon branch. Community evidence for better service.">
+    <meta name="theme-color" content="#00843D">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-inner">
+            <h1>District Line Tracker <span class="line-badge">WIMBLEDON</span></h1>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="index.html" class="active">Report</a>
+            <a href="feed.html">Feed</a>
+            <a href="dashboard.html">Dashboard</a>
+        </div>
+    </nav>
+
+    <main class="container">
+
+        <!-- Live TfL status + intro -->
+        <div class="banner">
+            <h2>Help us track District Line problems</h2>
+            <p>Report delays, cancellations, and issues on the Wimbledon branch. Your reports build evidence for change.</p>
+            <div id="tfl-live-status" class="tfl-status good" style="display: none;">
+                <span class="pulse"></span>
+                <span id="tfl-status-text">Checking TfL status...</span>
+            </div>
+        </div>
+
+        <!-- Report form -->
+        <form id="report-form" class="card">
+            <div class="card-title">Submit a Report</div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="incident_date">Date</label>
+                    <input type="date" id="incident_date" name="incident_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="incident_time">Time</label>
+                    <input type="time" id="incident_time" name="incident_time" required>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="station">Station</label>
+                <select id="station" name="station" required>
+                    <option value="">Select station...</option>
+                    <option value="Wimbledon">Wimbledon</option>
+                    <option value="Wimbledon Park">Wimbledon Park</option>
+                    <option value="Southfields">Southfields</option>
+                    <option value="East Putney">East Putney</option>
+                    <option value="Putney Bridge">Putney Bridge</option>
+                    <option value="Parsons Green">Parsons Green</option>
+                    <option value="Fulham Broadway">Fulham Broadway</option>
+                    <option value="West Brompton">West Brompton</option>
+                    <option value="Earls Court">Earls Court</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="direction">Direction of travel</label>
+                <select id="direction" name="direction" required>
+                    <option value="">Select direction...</option>
+                    <option value="Eastbound (towards City)">Eastbound (towards City)</option>
+                    <option value="Westbound (towards Wimbledon)">Westbound (towards Wimbledon)</option>
+                    <option value="Both / General">Both / General</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="category">Type of issue</label>
+                <select id="category" name="category" required>
+                    <option value="">Select category...</option>
+                    <option value="Severe Delays">Severe Delays</option>
+                    <option value="Minor Delays">Minor Delays</option>
+                    <option value="Signal Failure">Signal Failure</option>
+                    <option value="Overcrowding">Overcrowding</option>
+                    <option value="Train Cancellation">Train Cancellation</option>
+                    <option value="Reduced Service">Reduced Service</option>
+                    <option value="No Announcements / Poor Comms">No Announcements / Poor Comms</option>
+                    <option value="Safety Concern">Safety Concern</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="delay_minutes">Estimated delay (minutes)</label>
+                <p class="hint">How long were you delayed? Leave blank if unsure.</p>
+                <input type="number" id="delay_minutes" name="delay_minutes" min="0" max="120" placeholder="e.g. 15">
+            </div>
+
+            <div class="form-group">
+                <label for="description">What happened?</label>
+                <p class="hint">Describe the issue — what you saw, heard, or experienced.</p>
+                <textarea id="description" name="description" rows="3" placeholder="e.g. Waited 15 mins at Wimbledon Park, no announcements, train was standing room only..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="reporter_name">Your name (optional)</label>
+                <input type="text" id="reporter_name" name="reporter_name" placeholder="Anonymous">
+            </div>
+
+            <button type="submit" id="submit-btn" class="btn btn-primary">
+                Submit Report
+            </button>
+
+            <!-- Discrepancy note: shown after submission if TfL says "Good Service" -->
+            <div id="discrepancy-note" class="discrepancy-note" style="display: none;"></div>
+        </form>
+
+    </main>
+
+    <footer class="footer">
+        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
+        <p>TfL status via <a href="https://api.tfl.gov.uk" target="_blank" rel="noopener">TfL Open Data</a>.</p>
+    </footer>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>

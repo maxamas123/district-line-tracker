@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feed - District Line Tracker</title>
+    <meta name="theme-color" content="#00843D">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-inner">
+            <h1>District Line Tracker <span class="line-badge">WIMBLEDON</span></h1>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="index.html">Report</a>
+            <a href="feed.html" class="active">Feed</a>
+            <a href="dashboard.html">Dashboard</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="card" style="padding: 12px 16px;">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <select id="filter-station" style="flex: 1; min-width: 120px; padding: 8px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit;">
+                    <option value="">All stations</option>
+                    <option value="Wimbledon">Wimbledon</option>
+                    <option value="Wimbledon Park">Wimbledon Park</option>
+                    <option value="Southfields">Southfields</option>
+                    <option value="East Putney">East Putney</option>
+                    <option value="Putney Bridge">Putney Bridge</option>
+                    <option value="Parsons Green">Parsons Green</option>
+                    <option value="Fulham Broadway">Fulham Broadway</option>
+                    <option value="West Brompton">West Brompton</option>
+                    <option value="Earls Court">Earls Court</option>
+                </select>
+                <select id="filter-category" style="flex: 1; min-width: 120px; padding: 8px; border: 2px solid var(--border); border-radius: 8px; font-size: 13px; font-family: inherit;">
+                    <option value="">All categories</option>
+                    <option value="Severe Delays">Severe Delays</option>
+                    <option value="Minor Delays">Minor Delays</option>
+                    <option value="Signal Failure">Signal Failure</option>
+                    <option value="Overcrowding">Overcrowding</option>
+                    <option value="Train Cancellation">Train Cancellation</option>
+                    <option value="Reduced Service">Reduced Service</option>
+                    <option value="No Announcements / Poor Comms">No Announcements / Poor Comms</option>
+                    <option value="Safety Concern">Safety Concern</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="feed-container">
+            <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+                <div class="spinner" style="border-top-color: var(--district-green); border-color: var(--border);"></div>
+                <p style="margin-top: 12px; font-size: 14px;">Loading reports...</p>
+            </div>
+        </div>
+
+        <div id="load-more-container" style="text-align: center; padding: 12px; display: none;">
+            <button id="load-more-btn" class="btn" style="background: transparent; border: 2px solid var(--district-green); color: var(--district-green);">
+                Load more
+            </button>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
+    </footer>
+
+    <script src="js/app.js"></script>
+    <script src="js/feed.js"></script>
+</body>
+</html>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - District Line Tracker</title>
+    <meta name="theme-color" content="#00843D">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚇</text></svg>">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* Dashboard-specific styles (Slice 3 - placeholder) */
+        .coming-soon {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+        .coming-soon .icon { font-size: 48px; margin-bottom: 12px; }
+        .coming-soon h3 { font-size: 18px; color: var(--text); margin-bottom: 8px; }
+        .coming-soon p { font-size: 14px; max-width: 360px; margin: 0 auto; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <div class="header-inner">
+            <h1>District Line Tracker <span class="line-badge">WIMBLEDON</span></h1>
+        </div>
+    </header>
+
+    <nav class="nav">
+        <div class="nav-inner">
+            <a href="index.html">Report</a>
+            <a href="feed.html">Feed</a>
+            <a href="dashboard.html" class="active">Dashboard</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <div class="card coming-soon">
+            <div class="icon">📊</div>
+            <h3>Dashboard coming soon</h3>
+            <p>Once we have enough reports (20+), this page will show charts, trends, station heatmaps, TfL discrepancy analysis, and AI-generated summaries you can share with your MP.</p>
+            <p style="margin-top: 12px;"><a href="index.html" style="color: var(--district-green); font-weight: 600; text-decoration: none;">Submit a report</a> to help build the data.</p>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p>Built by Wimbledon branch commuters. Data shared with our local MP.</p>
+    </footer>
+</body>
+</html>
