@@ -1,0 +1,399 @@
+/* ============================================================
+   District Line Tracker - Styles
+   Mobile-first, vanilla CSS, District line green branding
+   ============================================================ */
+
+:root {
+    --district-green: #00843D;
+    --district-dark: #006B31;
+    --district-light: #E8F5EE;
+    --red: #DC3545;
+    --amber: #F0AD4E;
+    --bg: #F5F6FA;
+    --card: #FFFFFF;
+    --text: #1A1A2E;
+    --text-muted: #6C757D;
+    --border: #DEE2E6;
+    --radius: 12px;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Reset & base ---- */
+
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+    -webkit-text-size-adjust: 100%;
+}
+
+/* ---- Header ---- */
+
+.header {
+    background: var(--district-green);
+    color: white;
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+}
+
+.header-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.header h1 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.line-badge {
+    display: inline-block;
+    background: white;
+    color: var(--district-green);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    margin-left: 6px;
+}
+
+/* ---- Navigation ---- */
+
+.nav {
+    background: var(--district-dark);
+    position: sticky;
+    top: 54px;
+    z-index: 99;
+}
+
+.nav-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+}
+
+.nav a {
+    flex: 1;
+    padding: 12px 8px;
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 600;
+    transition: color 0.2s, background 0.2s;
+    position: relative;
+}
+
+.nav a:hover {
+    color: white;
+}
+
+.nav a.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav a.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 3px;
+    background: white;
+    border-radius: 3px 3px 0 0;
+}
+
+/* ---- Layout ---- */
+
+.container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+/* ---- Cards ---- */
+
+.card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px;
+    margin-bottom: 16px;
+}
+
+.card-title {
+    font-size: 15px;
+    font-weight: 700;
+    margin-bottom: 16px;
+}
+
+/* ---- Banner ---- */
+
+.banner {
+    background: linear-gradient(135deg, var(--district-green), var(--district-dark));
+    color: white;
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.banner h2 {
+    font-size: 17px;
+    margin-bottom: 6px;
+}
+
+.banner p {
+    font-size: 13px;
+    opacity: 0.9;
+    line-height: 1.5;
+}
+
+/* ---- TfL live status chip ---- */
+
+.tfl-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-top: 12px;
+}
+
+.tfl-status.good {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+}
+
+.tfl-status.minor {
+    background: var(--amber);
+    color: #333;
+}
+
+.tfl-status.severe {
+    background: var(--red);
+    color: white;
+}
+
+.tfl-status .pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* ---- Form ---- */
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.form-group .hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+input[type="text"],
+input[type="date"],
+input[type="time"],
+input[type="number"],
+select,
+textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    background: white;
+    color: var(--text);
+    transition: border-color 0.2s;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236C757D' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    outline: none;
+    border-color: var(--district-green);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+/* ---- Buttons ---- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, opacity 0.2s;
+}
+
+.btn-primary {
+    background: var(--district-green);
+    color: white;
+    width: 100%;
+}
+
+.btn-primary:hover {
+    background: var(--district-dark);
+}
+
+.btn-primary:disabled {
+    background: var(--border);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+/* ---- Toast notification ---- */
+
+.toast {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+    z-index: 200;
+    opacity: 0;
+    transition: all 0.3s;
+    pointer-events: none;
+    max-width: 90vw;
+    text-align: center;
+}
+
+.toast.success {
+    background: var(--district-green);
+    color: white;
+}
+
+.toast.error {
+    background: var(--red);
+    color: white;
+}
+
+.toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+/* ---- TfL discrepancy callout ---- */
+
+.discrepancy-note {
+    margin-top: 8px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.discrepancy-note.mismatch {
+    background: #FFF3CD;
+    border: 1px solid #FFECB5;
+    color: #856404;
+}
+
+.discrepancy-note.match {
+    background: var(--district-light);
+    color: var(--district-dark);
+}
+
+/* ---- Spinner ---- */
+
+.spinner {
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ---- Footer ---- */
+
+.footer {
+    text-align: center;
+    padding: 24px 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.footer a {
+    color: var(--district-green);
+    text-decoration: none;
+}
+
+/* ---- Responsive ---- */
+
+@media (min-width: 600px) {
+    .container {
+        padding: 24px;
+    }
+}
