@@ -1,12 +1,25 @@
 /*
  * District Line Tracker - dashboard.js
- * Dashboard with CSS bar charts, time-lost breakdowns, and TfL discrepancy analysis.
- * Vanilla JS, no chart libraries.
+ * Dashboard with CSS bar charts, time-lost breakdowns, day/time patterns,
+ * and TfL discrepancy analysis. Vanilla JS, no chart libraries.
  */
 
 var STATIONS_ORDER = [
     "Wimbledon", "Wimbledon Park", "Southfields", "East Putney",
     "Putney Bridge", "Parsons Green", "Fulham Broadway", "West Brompton", "Earls Court"
+];
+
+var DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+var TIME_BANDS = [
+    { label: "06–08", min: 6, max: 8 },
+    { label: "08–10", min: 8, max: 10 },
+    { label: "10–12", min: 10, max: 12 },
+    { label: "12–14", min: 12, max: 14 },
+    { label: "14–16", min: 14, max: 16 },
+    { label: "16–18", min: 16, max: 18 },
+    { label: "18–20", min: 18, max: 20 },
+    { label: "20–22", min: 20, max: 22 }
 ];
 
 function escapeHtml(str) {
@@ -25,13 +38,11 @@ function formatHours(totalMinutes) {
 }
 
 function getWeekKey(dateStr) {
-    // Returns "YYYY-Www" ISO week label
     var d = new Date(dateStr + "T00:00:00");
-    var dayOfWeek = d.getDay() || 7; // Make Sunday = 7
-    d.setDate(d.getDate() + 4 - dayOfWeek); // Set to nearest Thursday
+    var dayOfWeek = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - dayOfWeek);
     var yearStart = new Date(d.getFullYear(), 0, 1);
     var weekNum = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-    // Return a readable label: "3 Feb" (Monday of that week)
     var monday = new Date(dateStr + "T00:00:00");
     var dow = monday.getDay() || 7;
     monday.setDate(monday.getDate() - dow + 1);
@@ -41,6 +52,12 @@ function getWeekKey(dateStr) {
 function getMonthKey(dateStr) {
     var d = new Date(dateStr + "T00:00:00");
     return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
+function getHourFromTime(timeStr) {
+    if (!timeStr) return -1;
+    var parts = timeStr.split(":");
+    return parseInt(parts[0], 10);
 }
 
 function renderBarChart(containerId, data, colorClass) {
@@ -75,6 +92,54 @@ function renderBarChart(containerId, data, colorClass) {
 }
 
 
+/* ---- Dual-row bar chart (reports + time lost side by side) ---- */
+
+function renderDualBarChart(containerId, data) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+
+    if (data.length === 0) {
+        container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">No data yet</p>';
+        return;
+    }
+
+    var maxReports = Math.max.apply(null, data.map(function (d) { return d.reports; }));
+    var maxTimeLost = Math.max.apply(null, data.map(function (d) { return d.timeLost; }));
+    if (maxReports === 0) maxReports = 1;
+    if (maxTimeLost === 0) maxTimeLost = 1;
+
+    var html = '<div style="display: flex; gap: 6px; margin-bottom: 10px; font-size: 11px; color: var(--text-muted);">' +
+        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--district-green); display: inline-block;"></span> Reports</span>' +
+        '<span style="display: inline-flex; align-items: center; gap: 4px;"><span style="width: 12px; height: 12px; border-radius: 3px; background: var(--red); display: inline-block;"></span> Time lost</span>' +
+    '</div>';
+
+    for (var i = 0; i < data.length; i++) {
+        var d = data[i];
+        var reportPct = (d.reports / maxReports * 100).toFixed(1);
+        var timePct = (d.timeLost / maxTimeLost * 100).toFixed(1);
+
+        html +=
+            '<div style="margin-bottom: 12px;">' +
+                '<div style="font-size: 12px; font-weight: 700; margin-bottom: 4px; color: var(--text);">' + escapeHtml(d.label) + '</div>' +
+                '<div class="bar-row" style="margin-bottom: 2px;">' +
+                    '<div class="bar-track">' +
+                        '<div class="bar-fill green" style="width: ' + reportPct + '%"></div>' +
+                    '</div>' +
+                    '<div class="bar-value">' + d.reports + '</div>' +
+                '</div>' +
+                '<div class="bar-row">' +
+                    '<div class="bar-track">' +
+                        '<div class="bar-fill red" style="width: ' + timePct + '%"></div>' +
+                    '</div>' +
+                    '<div class="bar-value">' + formatHours(d.timeLost) + '</div>' +
+                '</div>' +
+            '</div>';
+    }
+
+    container.innerHTML = html;
+}
+
+
 /* ---- Load all dashboard data ---- */
 
 function loadDashboard() {
@@ -91,6 +156,8 @@ function loadDashboard() {
             buildStatsGrid(reports);
             buildWeeklyChart(reports);
             buildMonthlyChart(reports);
+            buildDayOfWeekChart(reports);
+            buildTimeOfDayChart(reports);
             buildStationChart(reports);
             buildCategoryChart(reports);
             buildDiscrepancyStats(reports);
@@ -177,7 +244,6 @@ function buildWeeklyChart(reports) {
         weekMap[key] += r.delay_minutes * people;
     }
 
-    // Reverse so oldest first
     weekOrder.reverse();
 
     var data = weekOrder.map(function (k) {
@@ -214,6 +280,85 @@ function buildMonthlyChart(reports) {
 }
 
 
+/* ---- Day of week chart (dual: reports + time lost) ---- */
+
+function buildDayOfWeekChart(reports) {
+    // Build arrays for Mon-Sun (reorder so Mon is first)
+    var dayOrder = [1, 2, 3, 4, 5, 6, 0]; // Mon=1 through Sun=0
+    var dayReports = {};
+    var dayTimeLost = {};
+
+    for (var i = 0; i < 7; i++) {
+        dayReports[i] = 0;
+        dayTimeLost[i] = 0;
+    }
+
+    for (var j = 0; j < reports.length; j++) {
+        var r = reports[j];
+        var d = new Date(r.incident_date + "T00:00:00");
+        var dow = d.getDay(); // 0=Sun, 1=Mon, ...
+        dayReports[dow]++;
+
+        if (r.delay_minutes && r.delay_minutes > 0) {
+            var people = 1 + (r.upvotes || 0);
+            dayTimeLost[dow] += r.delay_minutes * people;
+        }
+    }
+
+    var data = dayOrder.map(function (dow) {
+        return {
+            label: DAY_NAMES[dow],
+            reports: dayReports[dow],
+            timeLost: dayTimeLost[dow]
+        };
+    });
+
+    renderDualBarChart("day-of-week-chart", data);
+}
+
+
+/* ---- Time of day chart (dual: reports + time lost) ---- */
+
+function buildTimeOfDayChart(reports) {
+    var bandReports = {};
+    var bandTimeLost = {};
+
+    for (var i = 0; i < TIME_BANDS.length; i++) {
+        bandReports[i] = 0;
+        bandTimeLost[i] = 0;
+    }
+
+    for (var j = 0; j < reports.length; j++) {
+        var r = reports[j];
+        var hour = getHourFromTime(r.incident_time);
+        if (hour < 0) continue;
+
+        // Find which band this falls into
+        for (var b = 0; b < TIME_BANDS.length; b++) {
+            if (hour >= TIME_BANDS[b].min && hour < TIME_BANDS[b].max) {
+                bandReports[b]++;
+                if (r.delay_minutes && r.delay_minutes > 0) {
+                    var people = 1 + (r.upvotes || 0);
+                    bandTimeLost[b] += r.delay_minutes * people;
+                }
+                break;
+            }
+        }
+    }
+
+    var data = [];
+    for (var k = 0; k < TIME_BANDS.length; k++) {
+        data.push({
+            label: TIME_BANDS[k].label,
+            reports: bandReports[k],
+            timeLost: bandTimeLost[k]
+        });
+    }
+
+    renderDualBarChart("time-of-day-chart", data);
+}
+
+
 function buildStationChart(reports) {
     var stationMap = {};
     for (var i = 0; i < reports.length; i++) {
@@ -238,7 +383,6 @@ function buildCategoryChart(reports) {
         catMap[c] = (catMap[c] || 0) + 1;
     }
 
-    // Sort by count descending
     var cats = Object.keys(catMap).sort(function (a, b) { return catMap[b] - catMap[a]; });
 
     var colors = ["red", "amber", "green", "amber", "red", "green", "amber", "red", "green"];

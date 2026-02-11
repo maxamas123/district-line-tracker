@@ -413,8 +413,74 @@ textarea {
     border-color: var(--district-green);
     color: var(--district-green);
     background: var(--district-light);
-    cursor: default;
+    cursor: pointer;
 }
+
+.upvote-btn.voted:hover { background: #d0e8d8; }
+
+/* ---- Edit button ---- */
+
+.edit-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.edit-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+/* ---- Edit modal ---- */
+
+.edit-modal-overlay {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 300;
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.edit-modal {
+    background: white;
+    border-radius: var(--radius);
+    padding: 24px;
+    max-width: 500px; width: 100%;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    color: var(--text);
+    margin-top: 40px;
+}
+
+.edit-modal h3 { font-size: 16px; margin-bottom: 16px; }
+
+.edit-modal .form-group { margin-bottom: 12px; }
+
+.edit-modal .btn-row {
+    display: flex; gap: 8px; margin-top: 16px;
+}
+
+.edit-modal .btn-save {
+    flex: 1; padding: 10px; background: var(--district-green); color: white;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+}
+
+.edit-modal .btn-save:hover { background: var(--district-dark); }
+
+.edit-modal .btn-cancel {
+    flex: 1; padding: 10px; background: var(--bg); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+}
+
+.edit-modal .btn-cancel:hover { background: var(--border); }
 
 /* ---- Time lost hero ---- */
 
@@ -545,6 +611,39 @@ textarea {
 .footer-section h4 { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
 .footer-section p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
 .footer-section a { color: var(--district-green); text-decoration: none; }
+
+/* ---- Context / info box ---- */
+
+.context-box {
+    background: #EDF4FE;
+    border: 1px solid #BDD5F5;
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+}
+
+.context-box h4 {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    color: #1A56A8;
+}
+
+.context-box p {
+    font-size: 13px;
+    line-height: 1.6;
+    color: #3A5F8F;
+    margin-bottom: 6px;
+}
+
+.context-box p:last-child { margin-bottom: 0; }
+
+.context-box .source {
+    font-size: 11px;
+    font-style: italic;
+    opacity: 0.8;
+    margin-top: 8px;
+}
 
 /* ---- Rate limit notice ---- */
 

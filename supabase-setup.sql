@@ -84,3 +84,16 @@ BEGIN
     RETURN new_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 5. Downvote function (for toggling "Me too" off)
+CREATE OR REPLACE FUNCTION downvote_report(report_id UUID)
+RETURNS INTEGER AS $$
+DECLARE
+    new_count INTEGER;
+BEGIN
+    UPDATE reports SET upvotes = GREATEST(upvotes - 1, 0) WHERE id = report_id
+    RETURNING upvotes INTO new_count;
+    RETURN new_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -1,11 +1,14 @@
 /*
  * District Line Tracker - feed.js
- * Loads report feed with upvotes and time-lost tally.
- * Vanilla JS, no frameworks.
+ * Loads report feed with toggleable upvotes, edit for own reports,
+ * and time-lost tally. Vanilla JS, no frameworks.
  */
 
 var feedOffset = 0;
 var FEED_PAGE_SIZE = 20;
+
+// Store loaded report data so edit modal can access it
+var loadedReports = {};
 
 function escapeHtml(str) {
     if (!str) return "";
@@ -20,8 +23,9 @@ function formatDate(dateStr) {
 }
 
 function badgeClass(category, delayMins) {
-    if (category === "Severe Delays" || delayMins >= 15) return "severe";
-    if (category === "Minor Delays" || (delayMins && delayMins >= 5)) return "moderate";
+    if (category === "General Delays" && delayMins >= 15) return "severe";
+    if (category === "General Delays" || (delayMins && delayMins >= 5)) return "moderate";
+    if (category === "Signal Failure" || category === "Train Cancellation") return "severe";
     return "info";
 }
 
@@ -47,7 +51,6 @@ function loadTimeLostHero() {
             var thisWeekMinutes = 0;
             var thisMonthMinutes = 0;
             var totalReports = reports.length;
-            var discrepancyCount = 0;
 
             var now = new Date();
             var weekAgo = new Date(now - 7 * 86400000);
@@ -98,6 +101,9 @@ function loadTimeLostHero() {
 /* ---- Render a single report ---- */
 
 function renderReport(r) {
+    // Store report data for potential edit
+    loadedReports[r.id] = r;
+
     var severity = badgeClass(r.category, r.delay_minutes);
     var borderColor =
         severity === "severe" ? "var(--red)" :
@@ -118,23 +124,44 @@ function renderReport(r) {
             '</div>';
     }
 
-    // Upvote button
-    var voted = hasUpvoted(r.id);
-    var upvoteClass = "upvote-btn" + (voted ? " voted" : "");
-    var upvoteTitle = voted ? "You've already confirmed this" : "Tap if you experienced this too";
-    var peopleLost = 1 + (r.upvotes || 0);
-    var timeLostStr = r.delay_minutes ? formatHours(r.delay_minutes * peopleLost) + " lost" : "";
+    // Check if this is the user's own report
+    var mine = isMyReport(r.id);
 
-    var upvoteHtml =
-        '<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">' +
-            '<button class="' + upvoteClass + '" ' +
-                'data-report-id="' + r.id + '" ' +
-                'title="' + upvoteTitle + '"' +
-                (voted ? ' disabled' : '') + '>' +
-                '👍 Me too <span class="upvote-count">' + (r.upvotes || 0) + '</span>' +
-            '</button>' +
-            (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
-        '</div>';
+    // Upvote/action buttons
+    var actionsHtml = '';
+
+    if (mine) {
+        // Own report: show Edit button, no upvote (can't upvote your own)
+        var peopleLost = 1 + (r.upvotes || 0);
+        var timeLostStr = r.delay_minutes ? formatHours(r.delay_minutes * peopleLost) + " lost" : "";
+
+        actionsHtml =
+            '<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">' +
+                '<button class="edit-btn" data-report-id="' + r.id + '" title="Edit your report">' +
+                    '&#9998; Edit' +
+                '</button>' +
+                '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">Your report</span>' +
+                (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
+            '</div>';
+    } else {
+        // Not own report: show toggleable upvote button
+        var voted = hasUpvoted(r.id);
+        var upvoteClass = "upvote-btn" + (voted ? " voted" : "");
+        var upvoteTitle = voted ? "Tap again to remove your confirmation" : "Tap if you experienced this too";
+        var peopleLost = 1 + (r.upvotes || 0);
+        var timeLostStr = r.delay_minutes ? formatHours(r.delay_minutes * peopleLost) + " lost" : "";
+        var upvoteLabel = voted ? "&#10003; Confirmed" : "&#128077; Me too";
+
+        actionsHtml =
+            '<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">' +
+                '<button class="' + upvoteClass + '" ' +
+                    'data-report-id="' + r.id + '" ' +
+                    'title="' + upvoteTitle + '">' +
+                    upvoteLabel + ' <span class="upvote-count">' + (r.upvotes || 0) + '</span>' +
+                '</button>' +
+                (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
+            '</div>';
+    }
 
     return '<div class="card" style="border-left: 4px solid ' + borderColor + '; padding: 16px;" id="report-' + r.id + '">' +
         '<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">' +
@@ -151,7 +178,7 @@ function renderReport(r) {
         '</div>' +
         (r.description ? '<div style="font-size: 14px;">' + escapeHtml(r.description) + '</div>' : '') +
         discrepancy +
-        upvoteHtml +
+        actionsHtml +
     '</div>';
 }
 
@@ -208,8 +235,8 @@ function loadFeed(reset) {
                 loadMoreContainer.style.display = "block";
             }
 
-            // Attach upvote click handlers
-            attachUpvoteHandlers();
+            // Attach upvote + edit click handlers
+            attachHandlers();
         })
         .catch(function () {
             if (reset) {
@@ -220,12 +247,23 @@ function loadFeed(reset) {
         });
 }
 
-function attachUpvoteHandlers() {
-    var buttons = document.querySelectorAll(".upvote-btn:not(.voted)");
-    for (var i = 0; i < buttons.length; i++) {
-        buttons[i].onclick = function () {
+function attachHandlers() {
+    // Upvote buttons (toggleable — no .voted filter, all are clickable)
+    var upvoteBtns = document.querySelectorAll(".upvote-btn");
+    for (var i = 0; i < upvoteBtns.length; i++) {
+        upvoteBtns[i].onclick = function () {
             var id = this.getAttribute("data-report-id");
             doUpvote(id, this);
+        };
+    }
+
+    // Edit buttons
+    var editBtns = document.querySelectorAll(".edit-btn");
+    for (var j = 0; j < editBtns.length; j++) {
+        editBtns[j].onclick = function () {
+            var id = this.getAttribute("data-report-id");
+            var report = loadedReports[id];
+            if (report) showEditModal(report);
         };
     }
 }
