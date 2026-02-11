@@ -426,5 +426,26 @@ function buildDiscrepancyStats(reports) {
 }
 
 
+/* ---- Toggle patterns section ---- */
+
+var patternsVisible = false;
+
+function togglePatterns() {
+    var container = document.getElementById("patterns-container");
+    var btn = document.getElementById("toggle-patterns-btn");
+    if (!container || !btn) return;
+
+    patternsVisible = !patternsVisible;
+
+    if (patternsVisible) {
+        container.style.display = "block";
+        btn.textContent = "Hide reporting patterns ▲";
+    } else {
+        container.style.display = "none";
+        btn.textContent = "Show reporting patterns ▼";
+    }
+}
+
+
 /* ---- Init ---- */
 loadDashboard();

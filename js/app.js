@@ -187,6 +187,31 @@ function recordMyReport(reportId) {
 }
 
 
+/* ---- Shared utility ---- */
+
+function formatHoursShared(totalMinutes) {
+    if (totalMinutes < 60) return totalMinutes + " min";
+    var hrs = Math.floor(totalMinutes / 60);
+    var mins = Math.round(totalMinutes % 60);
+    if (mins === 0) return hrs + " hr" + (hrs > 1 ? "s" : "");
+    return hrs + " hr" + (hrs > 1 ? "s" : "") + " " + mins + " min";
+}
+
+function updateAffectedStats(reportId, newUpvoteCount, btnEl) {
+    var span = document.querySelector('.affected-stats[data-report-id="' + reportId + '"]');
+    if (!span) return;
+    var delayMins = parseInt(btnEl.getAttribute("data-delay"), 10) || 0;
+    var peopleLost = 1 + newUpvoteCount;
+    var word = peopleLost === 1 ? "person" : "people";
+    if (delayMins > 0) {
+        var fmtFn = typeof formatHours === "function" ? formatHours : formatHoursShared;
+        span.textContent = peopleLost + " " + word + " affected · " + fmtFn(delayMins * peopleLost) + " lost";
+    } else {
+        span.textContent = peopleLost + " " + word + " affected";
+    }
+}
+
+
 /* ---- Upvote helpers (toggleable) ---- */
 
 function hasUpvoted(reportId) {
@@ -237,6 +262,7 @@ function doUpvote(reportId, btnEl) {
                 btnEl.innerHTML = '&#128077; Me too <span class="upvote-count">' + newCount + '</span>';
                 btnEl.classList.remove("voted");
                 btnEl.title = "Tap if you experienced this too";
+                updateAffectedStats(reportId, newCount, btnEl);
                 showToast("Your confirmation has been removed", "success");
                 if (typeof loadTimeLostHero === "function") loadTimeLostHero();
             })
@@ -252,6 +278,7 @@ function doUpvote(reportId, btnEl) {
                 btnEl.innerHTML = '&#10003; Confirmed <span class="upvote-count">' + newCount + '</span>';
                 btnEl.classList.add("voted");
                 btnEl.title = "Tap again to remove your confirmation";
+                updateAffectedStats(reportId, newCount, btnEl);
                 showToast("Confirmed — your time lost has been added", "success");
                 if (typeof loadTimeLostHero === "function") loadTimeLostHero();
             })
@@ -340,7 +367,7 @@ function showEditModal(report) {
             '</div>' +
             '<div class="form-group">' +
                 '<label>Delay (minutes)</label>' +
-                '<input type="number" id="edit-delay" min="0" max="120" value="' + (report.delay_minutes || '') + '">' +
+                '<input type="number" id="edit-delay" min="0" max="60" value="' + (report.delay_minutes || '') + '">' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Description</label>' +
@@ -370,11 +397,36 @@ function showEditModal(report) {
     });
 
     document.getElementById("edit-save-btn").addEventListener("click", function () {
+        // Time validation: only during operating hours (04:30–01:30)
+        var editTimeVal = document.getElementById("edit-time").value;
+        if (editTimeVal) {
+            var etp = editTimeVal.split(":");
+            var eTotalMins = parseInt(etp[0], 10) * 60 + parseInt(etp[1], 10);
+            if (eTotalMins > 90 && eTotalMins < 270) {
+                showToast("Trains don\u2019t run between 1:30am and 4:30am. Please check the time.", "error");
+                return;
+            }
+        }
+
+        var delayVal = document.getElementById("edit-delay").value;
+
+        // Delay validation: max 60 minutes
+        if (delayVal && parseInt(delayVal, 10) > 60) {
+            showToast("Maximum delay is 60 minutes per report.", "error");
+            return;
+        }
+
+        // Delay confirmation: warn if over 30 minutes
+        if (delayVal && parseInt(delayVal, 10) > 30) {
+            if (!confirm("You\u2019ve entered a delay of " + delayVal + " minutes. Delays over 30 minutes are unusual \u2014 are you sure?")) {
+                return;
+            }
+        }
+
         var btn = this;
         btn.disabled = true;
         btn.textContent = "Saving...";
 
-        var delayVal = document.getElementById("edit-delay").value;
         var nameVal = document.getElementById("edit-name").value;
         var updated = {
             incident_date: document.getElementById("edit-date").value,
@@ -497,6 +549,18 @@ function initReportForm() {
             return;
         }
 
+        // Time validation: only during operating hours (04:30–01:30)
+        var timeVal = document.getElementById("incident_time").value;
+        if (timeVal) {
+            var tp = timeVal.split(":");
+            var totalMins = parseInt(tp[0], 10) * 60 + parseInt(tp[1], 10);
+            // Invalid window: 01:31 (91 mins) to 04:29 (269 mins)
+            if (totalMins > 90 && totalMins < 270) {
+                showToast("Trains don\u2019t run between 1:30am and 4:30am. Please check the time.", "error");
+                return;
+            }
+        }
+
         // Rate limit check
         if (!canSubmit()) {
             var secs = getSecondsUntilCanSubmit();
@@ -504,11 +568,24 @@ function initReportForm() {
             return;
         }
 
+        var delayVal = document.getElementById("delay_minutes").value;
+
+        // Delay validation: max 60 minutes
+        if (delayVal && parseInt(delayVal, 10) > 60) {
+            showToast("Maximum delay is 60 minutes per report. For longer disruptions, submit multiple reports.", "error");
+            return;
+        }
+
+        // Delay confirmation: warn if over 30 minutes
+        if (delayVal && parseInt(delayVal, 10) > 30) {
+            if (!confirm("You\u2019ve entered a delay of " + delayVal + " minutes. Delays over 30 minutes are unusual \u2014 are you sure this is correct?")) {
+                return;
+            }
+        }
+
         var btn = document.getElementById("submit-btn");
         btn.disabled = true;
         btn.innerHTML = '<span class="spinner"></span> Submitting...';
-
-        var delayVal = document.getElementById("delay_minutes").value;
         var reporterName = document.getElementById("reporter_name").value || "Anonymous";
 
         // Save name for next time

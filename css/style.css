@@ -407,7 +407,7 @@ textarea {
     transition: all 0.2s;
 }
 
-.upvote-btn:hover { border-color: var(--district-green); color: var(--district-green); }
+.upvote-btn:hover { border-color: #999; color: #555; }
 
 .upvote-btn.voted {
     border-color: var(--district-green);
@@ -663,6 +663,28 @@ textarea {
     opacity: 0.8;
     margin-top: 8px;
 }
+
+/* ---- Toggle button ---- */
+
+.toggle-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px 16px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    color: var(--text);
+    transition: background 0.2s;
+}
+
+.toggle-btn:hover { background: var(--border); }
 
 /* ---- Rate limit notice ---- */
 

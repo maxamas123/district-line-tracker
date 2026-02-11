@@ -144,7 +144,7 @@ function renderReport(r) {
                     '&#128465; Delete' +
                 '</button>' +
                 '<span style="font-size: 12px; color: var(--text-muted); font-style: italic;">Your report</span>' +
-                (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
+                (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + (peopleLost === 1 ? ' person' : ' people') + ' affected · ' + timeLostStr + '</span>' : '') +
             '</div>';
     } else {
         // Not own report: show toggleable upvote button
@@ -159,10 +159,13 @@ function renderReport(r) {
             '<div style="display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap;">' +
                 '<button class="' + upvoteClass + '" ' +
                     'data-report-id="' + r.id + '" ' +
+                    'data-delay="' + (r.delay_minutes || 0) + '" ' +
                     'title="' + upvoteTitle + '">' +
                     upvoteLabel + ' <span class="upvote-count">' + (r.upvotes || 0) + '</span>' +
                 '</button>' +
-                (timeLostStr ? '<span style="font-size: 12px; color: var(--text-muted);">' + peopleLost + ' people affected · ' + timeLostStr + '</span>' : '') +
+                '<span class="affected-stats" data-report-id="' + r.id + '" style="font-size: 12px; color: var(--text-muted);">' +
+                    (timeLostStr ? peopleLost + (peopleLost === 1 ? ' person' : ' people') + ' affected · ' + timeLostStr : '') +
+                '</span>' +
             '</div>';
     }
 
