@@ -217,7 +217,10 @@ function getOwnerToken(reportId) {
 }
 
 function isMyReport(reportId) {
-    return !!getOwnerToken(reportId);
+    if (getOwnerToken(reportId)) return true;
+    // Fallback: check old list (reports created before token system)
+    var mine = JSON.parse(localStorage.getItem("dlt_my_reports") || "[]");
+    return mine.indexOf(reportId) !== -1;
 }
 
 function recordMyReport(reportId, ownerToken) {
@@ -389,6 +392,7 @@ function showInfoModal() {
             '<p>We multiply the reported delay by the number of people affected (the original reporter + everyone who tapped "Me too") to calculate total passenger time lost.</p>' +
             '<p>For example: a 15-minute delay confirmed by 4 additional passengers = 15 &times; 5 = <strong>75 person-minutes (1 hr 15 min)</strong> of collective time wasted.</p>' +
             '<p>This gives TfL, MPs, and the media a real sense of the cumulative human cost of poor service.</p>' +
+            '<p>Data collection began in February 2026. All figures reflect reports submitted since then.</p>' +
             '<button class="close-modal" onclick="this.closest(\'.info-modal-overlay\').remove()">Got it</button>' +
         '</div>';
     overlay.addEventListener("click", function (e) {
@@ -528,25 +532,26 @@ function showEditModal(report) {
         };
 
         var ownerToken = getOwnerToken(report.id);
-        if (!ownerToken) {
-            showToast("Cannot edit: ownership token not found.", "error");
-            btn.disabled = false;
-            btn.textContent = "Save changes";
-            return;
+        var editPromise;
+        if (ownerToken) {
+            editPromise = supabaseRpc("edit_report", {
+                p_report_id: report.id,
+                p_owner_token: ownerToken,
+                p_incident_date: updated.incident_date,
+                p_incident_time: updated.incident_time,
+                p_station: updated.station,
+                p_direction: updated.direction,
+                p_category: updated.category,
+                p_delay_minutes: updated.delay_minutes,
+                p_description: updated.description,
+                p_reporter_name: updated.reporter_name
+            });
+        } else {
+            // Legacy report without token — use direct update
+            editPromise = supabaseUpdate("reports", report.id, updated);
         }
 
-        supabaseRpc("edit_report", {
-            p_report_id: report.id,
-            p_owner_token: ownerToken,
-            p_incident_date: updated.incident_date,
-            p_incident_time: updated.incident_time,
-            p_station: updated.station,
-            p_direction: updated.direction,
-            p_category: updated.category,
-            p_delay_minutes: updated.delay_minutes,
-            p_description: updated.description,
-            p_reporter_name: updated.reporter_name
-        })
+        editPromise
             .then(function () {
                 overlay.remove();
                 showToast("Report updated", "success");
@@ -606,17 +611,18 @@ function showDeleteConfirm(reportId) {
         btn.textContent = "Deleting...";
 
         var ownerToken = getOwnerToken(reportId);
-        if (!ownerToken) {
-            showToast("Cannot delete: ownership token not found.", "error");
-            btn.disabled = false;
-            btn.textContent = "Delete";
-            return;
+        var deletePromise;
+        if (ownerToken) {
+            deletePromise = supabaseRpc("delete_report", {
+                p_report_id: reportId,
+                p_owner_token: ownerToken
+            });
+        } else {
+            // Legacy report without token — use direct delete
+            deletePromise = supabaseDelete("reports", reportId);
         }
 
-        supabaseRpc("delete_report", {
-            p_report_id: reportId,
-            p_owner_token: ownerToken
-        })
+        deletePromise
             .then(function () {
                 overlay.remove();
                 removeMyReport(reportId);
@@ -757,8 +763,32 @@ function initReportForm() {
                 tfl_status_description: rpcArgs.p_tfl_status_description
             };
 
-            return supabaseRpc("create_report", rpcArgs).then(function (result) {
-                // RPC returns the new report UUID
+            return supabaseRpc("create_report", rpcArgs)
+                .catch(function (rpcErr) {
+                    // Fallback: if RPC function doesn't exist yet (migration not run),
+                    // use direct insert
+                    if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
+                        var directRow = {
+                            incident_date: rpcArgs.p_incident_date,
+                            incident_time: rpcArgs.p_incident_time,
+                            station: rpcArgs.p_station,
+                            direction: rpcArgs.p_direction,
+                            category: rpcArgs.p_category,
+                            delay_minutes: rpcArgs.p_delay_minutes,
+                            description: rpcArgs.p_description,
+                            reporter_name: rpcArgs.p_reporter_name,
+                            tfl_status_severity: rpcArgs.p_tfl_status_severity,
+                            tfl_status_description: rpcArgs.p_tfl_status_description,
+                            tfl_status_reason: rpcArgs.p_tfl_status_reason
+                        };
+                        return supabaseInsert("reports", directRow).then(function (data) {
+                            return (data && data[0] && data[0].id) ? data[0].id : null;
+                        });
+                    }
+                    throw rpcErr;
+                })
+                .then(function (result) {
+                // RPC returns a UUID, fallback returns extracted id
                 var reportId = typeof result === "string" ? result :
                     (Array.isArray(result) && result.length > 0 ? String(result[0]) : null);
                 if (reportId) {
