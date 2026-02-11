@@ -53,6 +53,28 @@ function updateTflBanner(status) {
 }
 
 
+/* ---- Historical TfL status lookup ---- */
+
+function lookupHistoricalTflStatus(dateStr, timeStr) {
+    var isoDateTime = dateStr + "T" + timeStr + ":00";
+    var params = "checked_at=lte." + encodeURIComponent(isoDateTime) + "&order=checked_at.desc&limit=1";
+
+    return supabaseSelect("tfl_status_log", params).then(function (rows) {
+        if (rows && rows.length > 0) {
+            return {
+                severity: rows[0].status_severity,
+                description: rows[0].status_description,
+                reason: rows[0].reason || null,
+                checked_at: rows[0].checked_at
+            };
+        }
+        return null;
+    }).catch(function () {
+        return null;
+    });
+}
+
+
 /* ---- Supabase helpers ---- */
 
 function supabaseInsert(table, row) {
@@ -178,18 +200,36 @@ function getSecondsUntilCanSubmit() {
 }
 
 
-/* ---- My reports tracking ---- */
+/* ---- My reports tracking & ownership tokens ---- */
 
-function isMyReport(reportId) {
-    var mine = JSON.parse(localStorage.getItem("dlt_my_reports") || "[]");
-    return mine.indexOf(reportId) !== -1;
+function generateOwnerToken() {
+    if (window.crypto && typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    var arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, function (b) { return ("0" + b.toString(16)).slice(-2); }).join("");
 }
 
-function recordMyReport(reportId) {
+function getOwnerToken(reportId) {
+    var tokens = JSON.parse(localStorage.getItem("dlt_report_tokens") || "{}");
+    return tokens[reportId] || null;
+}
+
+function isMyReport(reportId) {
+    return !!getOwnerToken(reportId);
+}
+
+function recordMyReport(reportId, ownerToken) {
     var mine = JSON.parse(localStorage.getItem("dlt_my_reports") || "[]");
     if (mine.indexOf(reportId) === -1) {
         mine.push(reportId);
         localStorage.setItem("dlt_my_reports", JSON.stringify(mine));
+    }
+    if (ownerToken) {
+        var tokens = JSON.parse(localStorage.getItem("dlt_report_tokens") || "{}");
+        tokens[reportId] = ownerToken;
+        localStorage.setItem("dlt_report_tokens", JSON.stringify(tokens));
     }
 }
 
@@ -487,7 +527,26 @@ function showEditModal(report) {
             reporter_name: nameVal || "Anonymous"
         };
 
-        supabaseUpdate("reports", report.id, updated)
+        var ownerToken = getOwnerToken(report.id);
+        if (!ownerToken) {
+            showToast("Cannot edit: ownership token not found.", "error");
+            btn.disabled = false;
+            btn.textContent = "Save changes";
+            return;
+        }
+
+        supabaseRpc("edit_report", {
+            p_report_id: report.id,
+            p_owner_token: ownerToken,
+            p_incident_date: updated.incident_date,
+            p_incident_time: updated.incident_time,
+            p_station: updated.station,
+            p_direction: updated.direction,
+            p_category: updated.category,
+            p_delay_minutes: updated.delay_minutes,
+            p_description: updated.description,
+            p_reporter_name: updated.reporter_name
+        })
             .then(function () {
                 overlay.remove();
                 showToast("Report updated", "success");
@@ -513,6 +572,9 @@ function removeMyReport(reportId) {
         mine.splice(idx, 1);
         localStorage.setItem("dlt_my_reports", JSON.stringify(mine));
     }
+    var tokens = JSON.parse(localStorage.getItem("dlt_report_tokens") || "{}");
+    delete tokens[reportId];
+    localStorage.setItem("dlt_report_tokens", JSON.stringify(tokens));
 }
 
 function showDeleteConfirm(reportId) {
@@ -543,7 +605,18 @@ function showDeleteConfirm(reportId) {
         btn.disabled = true;
         btn.textContent = "Deleting...";
 
-        supabaseDelete("reports", reportId)
+        var ownerToken = getOwnerToken(reportId);
+        if (!ownerToken) {
+            showToast("Cannot delete: ownership token not found.", "error");
+            btn.disabled = false;
+            btn.textContent = "Delete";
+            return;
+        }
+
+        supabaseRpc("delete_report", {
+            p_report_id: reportId,
+            p_owner_token: ownerToken
+        })
             .then(function () {
                 overlay.remove();
                 removeMyReport(reportId);
@@ -641,30 +714,61 @@ function initReportForm() {
             localStorage.setItem("dlt_reporter_name", reporterName);
         }
 
-        var row = {
-            incident_date: document.getElementById("incident_date").value,
-            incident_time: document.getElementById("incident_time").value,
-            station: document.getElementById("station").value,
-            direction: document.getElementById("direction").value,
-            category: document.getElementById("category").value,
-            delay_minutes: delayVal ? parseInt(delayVal, 10) : null,
-            description: document.getElementById("description").value,
-            reporter_name: reporterName,
-            tfl_status_severity: currentTflStatus ? currentTflStatus.severity : null,
-            tfl_status_description: currentTflStatus ? currentTflStatus.description : null,
-            tfl_status_reason: currentTflStatus ? currentTflStatus.reason : null
-        };
+        // Determine TfL status: use live for recent incidents, historical for past ones
+        var incidentDT = new Date(dateVal + "T" + timeVal);
+        var diffMs = Math.abs(Date.now() - incidentDT.getTime());
+        var ONE_HOUR_MS = 60 * 60 * 1000;
 
-        supabaseInsert("reports", row)
-            .then(function (data) {
-                // Track this as our own report
-                if (data && data[0] && data[0].id) {
-                    recordMyReport(data[0].id);
+        var tflPromise;
+        if (diffMs <= ONE_HOUR_MS) {
+            // Within the last hour — use live status
+            tflPromise = Promise.resolve({ status: currentTflStatus, historical: false });
+        } else {
+            // Past event — look up the closest snapshot from tfl_status_log
+            tflPromise = lookupHistoricalTflStatus(dateVal, timeVal).then(function (s) {
+                return { status: s || currentTflStatus, historical: !!s };
+            });
+        }
+
+        tflPromise.then(function (tflResult) {
+            var tflStatus = tflResult.status;
+            var isHistorical = tflResult.historical;
+
+            var ownerToken = generateOwnerToken();
+            var rpcArgs = {
+                p_incident_date: document.getElementById("incident_date").value,
+                p_incident_time: document.getElementById("incident_time").value,
+                p_station: document.getElementById("station").value,
+                p_direction: document.getElementById("direction").value,
+                p_category: document.getElementById("category").value,
+                p_delay_minutes: delayVal ? parseInt(delayVal, 10) : null,
+                p_description: document.getElementById("description").value,
+                p_reporter_name: reporterName,
+                p_tfl_status_severity: tflStatus ? tflStatus.severity : null,
+                p_tfl_status_description: tflStatus ? tflStatus.description : null,
+                p_tfl_status_reason: tflStatus ? tflStatus.reason : null,
+                p_owner_token: ownerToken
+            };
+
+            // For discrepancy note display
+            var rowForNote = {
+                delay_minutes: rpcArgs.p_delay_minutes,
+                tfl_status_severity: rpcArgs.p_tfl_status_severity,
+                tfl_status_description: rpcArgs.p_tfl_status_description
+            };
+
+            return supabaseRpc("create_report", rpcArgs).then(function (result) {
+                // RPC returns the new report UUID
+                var reportId = typeof result === "string" ? result :
+                    (Array.isArray(result) && result.length > 0 ? String(result[0]) : null);
+                if (reportId) {
+                    reportId = reportId.replace(/"/g, "");
+                    recordMyReport(reportId, ownerToken);
                 }
 
                 recordSubmission();
                 showToast("Report submitted — thank you!", "success");
-                showDiscrepancyNote(row);
+                showDiscrepancyNote(rowForNote, isHistorical);
                 checkRateLimitNotice();
 
                 // Reset form (keep date, time, name)
@@ -673,14 +777,13 @@ function initReportForm() {
                 document.getElementById("category").value = "";
                 document.getElementById("delay_minutes").value = "";
                 document.getElementById("description").value = "";
-            })
-            .catch(function (err) {
-                showToast("Error: " + err.message, "error");
-            })
-            .finally(function () {
-                btn.disabled = false;
-                btn.textContent = "Submit Report";
             });
+        }).catch(function (err) {
+            showToast("Error: " + err.message, "error");
+        }).finally(function () {
+            btn.disabled = false;
+            btn.textContent = "Submit Report";
+        });
     });
 }
 
@@ -700,17 +803,26 @@ function checkRateLimitNotice() {
     }
 }
 
-function showDiscrepancyNote(row) {
+function showDiscrepancyNote(row, isHistorical) {
     var noteEl = document.getElementById("discrepancy-note");
-    if (!noteEl || !currentTflStatus) return;
+    if (!noteEl) return;
 
-    var tflSaysGood = currentTflStatus.severity >= 10;
+    var tflSeverity = row.tfl_status_severity;
+    var tflDescription = row.tfl_status_description;
+    if (tflSeverity == null) {
+        noteEl.style.display = "none";
+        return;
+    }
+
+    var tflSaysGood = tflSeverity >= 10;
     var userReportsDelay = row.delay_minutes && row.delay_minutes > 0;
+    var verb = isHistorical ? "was reporting" : "currently reports";
+    var verbAlt = isHistorical ? "TfL was reporting" : "TfL is currently reporting";
 
     if (tflSaysGood && userReportsDelay) {
         noteEl.className = "discrepancy-note mismatch";
         noteEl.innerHTML =
-            "<strong>Discrepancy recorded.</strong> TfL currently reports " +
+            "<strong>Discrepancy recorded.</strong> TfL " + verb + " " +
             '"Good Service" on the District line, but you experienced a ' +
             row.delay_minutes + '-minute delay. ' +
             "This mismatch has been logged and will be included in reports to your MP.";
@@ -718,7 +830,7 @@ function showDiscrepancyNote(row) {
     } else if (!tflSaysGood && userReportsDelay) {
         noteEl.className = "discrepancy-note match";
         noteEl.innerHTML =
-            "TfL is currently reporting: <strong>" + currentTflStatus.description +
+            verbAlt + ": <strong>" + tflDescription +
             "</strong>. Your report helps document the real-world impact.";
         noteEl.style.display = "block";
     } else {

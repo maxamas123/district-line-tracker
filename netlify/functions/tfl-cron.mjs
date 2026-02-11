@@ -1,9 +1,10 @@
 /*
  * tfl-cron.mjs - Netlify Scheduled Function
- * Runs every hour to log the TfL District line status to Supabase.
+ * Runs every 15 minutes to log the TfL District line status to Supabase.
  *
- * This creates an hourly record so you can compare what TfL *said*
- * the service status was vs what commuters actually experienced.
+ * This creates a regular snapshot so when someone reports a past delay,
+ * we can look up what TfL *said* the service status was at that time
+ * vs what passengers actually experienced.
  *
  * Set these environment variables in Netlify (Site > Environment variables):
  *   SUPABASE_URL       - e.g. https://abcdef.supabase.co
@@ -11,7 +12,7 @@
  */
 
 export const config = {
-    schedule: "0 * * * *"  // Every hour on the hour
+    schedule: "*/15 * * * *"  // Every 15 minutes
 };
 
 export default async function handler() {

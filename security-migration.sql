@@ -1,43 +1,22 @@
 -- ============================================================
--- Fix The District - Supabase Setup
+-- Fix The District - Security Migration
 -- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
+-- AFTER the initial supabase-setup.sql has been applied.
+--
+-- This hardens the database by:
+--   1. Adding token-based ownership for reports
+--   2. Removing overly permissive UPDATE/DELETE policies
+--   3. Moving insert/edit/delete to validated RPC functions
+--   4. Restricting tfl_status_log to service role only
+--   5. Adding server-side data validation
 -- ============================================================
 
--- 1. Reports table: stores every delay report
-CREATE TABLE reports (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    incident_date DATE NOT NULL,
-    incident_time TIME NOT NULL,
-    station TEXT NOT NULL,
-    direction TEXT NOT NULL,
-    category TEXT NOT NULL,
-    delay_minutes INTEGER,
-    description TEXT,
-    reporter_name TEXT DEFAULT 'Anonymous',
-    upvotes INTEGER DEFAULT 0,
 
-    -- TfL official status captured at the moment of report
-    tfl_status_severity INTEGER,
-    tfl_status_description TEXT,
-    tfl_status_reason TEXT,
-
-    -- Constraints
-    CONSTRAINT chk_delay_range CHECK (delay_minutes IS NULL OR (delay_minutes >= 0 AND delay_minutes <= 60)),
-    CONSTRAINT chk_upvotes_positive CHECK (upvotes >= 0)
-);
-
--- Indexes for common queries
-CREATE INDEX idx_reports_date ON reports(incident_date);
-CREATE INDEX idx_reports_station ON reports(station);
-CREATE INDEX idx_reports_category ON reports(category);
-
-
--- 2. Report ownership tokens
--- Each report gets a random token on creation, stored here.
--- The anon role cannot read this table (no SELECT policy).
+-- 1. Create report_tokens table for ownership verification
+-- With RLS enabled and NO policies, the anon role cannot read this table directly.
 -- All access goes through SECURITY DEFINER functions.
-CREATE TABLE report_tokens (
+
+CREATE TABLE IF NOT EXISTS report_tokens (
     report_id UUID PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE,
     owner_token TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
@@ -47,43 +26,24 @@ ALTER TABLE report_tokens ENABLE ROW LEVEL SECURITY;
 -- No policies = anon cannot SELECT, INSERT, UPDATE, or DELETE
 
 
--- 3. TfL status log: snapshots from the TfL API (every 15 mins)
-CREATE TABLE tfl_status_log (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    checked_at TIMESTAMPTZ DEFAULT now(),
-    status_severity INTEGER NOT NULL,
-    status_description TEXT NOT NULL,
-    reason TEXT,
-    raw_response JSONB
-);
+-- 2. Remove the overly permissive policies
+DROP POLICY IF EXISTS "Anyone can upvote reports" ON reports;
+DROP POLICY IF EXISTS "Anyone can delete reports" ON reports;
+DROP POLICY IF EXISTS "Anyone can insert reports" ON reports;
 
-CREATE INDEX idx_tfl_status_checked ON tfl_status_log(checked_at);
+-- With no INSERT/UPDATE/DELETE policies and RLS enabled,
+-- anon users cannot directly modify the reports table.
+-- The service_role key (used by cron) bypasses RLS entirely.
+-- All writes now go through SECURITY DEFINER RPC functions.
 
 
--- 4. Row Level Security
--- Reports: anyone can read, all writes go through RPC functions.
--- tfl_status_log: anyone can read, only service_role can write.
-
-ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can read reports"
-    ON reports FOR SELECT
-    USING (true);
-
--- No INSERT, UPDATE, or DELETE policies for reports.
--- All modifications go through SECURITY DEFINER functions below.
-
-ALTER TABLE tfl_status_log ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can read tfl status"
-    ON tfl_status_log FOR SELECT
-    USING (true);
-
--- No INSERT policy for tfl_status_log.
--- The service_role key (used by the cron function) bypasses RLS.
+-- 3. Restrict tfl_status_log to service role only
+-- Remove the permissive insert policy. With no INSERT policy,
+-- anon can't insert. The service_role key bypasses RLS.
+DROP POLICY IF EXISTS "Service can insert tfl status" ON tfl_status_log;
 
 
--- 5. RPC: Create a report (with ownership token + server-side validation)
+-- 4. RPC: Create a report (with ownership token + validation)
 CREATE OR REPLACE FUNCTION create_report(
     p_incident_date DATE,
     p_incident_time TIME,
@@ -144,7 +104,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 6. RPC: Edit a report (requires matching ownership token)
+-- 5. RPC: Edit a report (requires matching ownership token)
 CREATE OR REPLACE FUNCTION edit_report(
     p_report_id UUID,
     p_owner_token TEXT,
@@ -186,7 +146,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 7. RPC: Delete a report (requires matching ownership token)
+-- 6. RPC: Delete a report (requires matching ownership token)
 CREATE OR REPLACE FUNCTION delete_report(
     p_report_id UUID,
     p_owner_token TEXT
@@ -206,27 +166,17 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 8. RPC: Upvote (atomic increment — no ownership required)
-CREATE OR REPLACE FUNCTION upvote_report(report_id UUID)
-RETURNS INTEGER AS $$
-DECLARE
-    new_count INTEGER;
+-- 7. Database-level constraints (belt and suspenders)
+DO $$
 BEGIN
-    UPDATE reports SET upvotes = upvotes + 1 WHERE id = report_id
-    RETURNING upvotes INTO new_count;
-    RETURN new_count;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+    ALTER TABLE reports ADD CONSTRAINT chk_delay_range
+        CHECK (delay_minutes IS NULL OR (delay_minutes >= 0 AND delay_minutes <= 60));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-
--- 9. RPC: Downvote (for toggling "Me too" off — no ownership required)
-CREATE OR REPLACE FUNCTION downvote_report(report_id UUID)
-RETURNS INTEGER AS $$
-DECLARE
-    new_count INTEGER;
+DO $$
 BEGIN
-    UPDATE reports SET upvotes = GREATEST(upvotes - 1, 0) WHERE id = report_id
-    RETURNING upvotes INTO new_count;
-    RETURN new_count;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+    ALTER TABLE reports ADD CONSTRAINT chk_upvotes_positive
+        CHECK (upvotes >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
