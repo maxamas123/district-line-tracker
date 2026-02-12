@@ -50,46 +50,41 @@ function escapeHtmlChars(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function fetchWithTimeout(url, timeoutMs) {
-    return new Promise(function (resolve, reject) {
-        var timer = setTimeout(function () {
-            reject(new Error("Request timed out"));
-        }, timeoutMs);
-
-        fetch(url).then(function (res) {
-            clearTimeout(timer);
-            resolve(res);
-        }).catch(function (err) {
-            clearTimeout(timer);
-            reject(err);
-        });
-    });
+function parseTflResponse(data) {
+    if (data && data[0] && data[0].lineStatuses && data[0].lineStatuses.length > 0) {
+        var statuses = data[0].lineStatuses;
+        var worst = statuses[0];
+        for (var i = 1; i < statuses.length; i++) {
+            if (statuses[i].statusSeverity < worst.statusSeverity) {
+                worst = statuses[i];
+            }
+        }
+        currentTflStatus = {
+            severity: worst.statusSeverity,
+            description: worst.statusSeverityDescription,
+            reason: worst.reason || null
+        };
+    }
+    return currentTflStatus;
 }
 
 function fetchTflStatus() {
-    return fetchWithTimeout(TFL_API, 8000)
+    return fetch(TFL_API)
         .then(function (res) { return res.json(); })
-        .then(function (data) {
-            if (data && data[0] && data[0].lineStatuses && data[0].lineStatuses.length > 0) {
-                var statuses = data[0].lineStatuses;
-                // Pick the worst status (lowest severity = most disruptive)
-                var worst = statuses[0];
-                for (var i = 1; i < statuses.length; i++) {
-                    if (statuses[i].statusSeverity < worst.statusSeverity) {
-                        worst = statuses[i];
-                    }
-                }
-                currentTflStatus = {
-                    severity: worst.statusSeverity,
-                    description: worst.statusSeverityDescription,
-                    reason: worst.reason || null
-                };
-            }
-            return currentTflStatus;
-        })
+        .then(parseTflResponse)
         .catch(function () {
-            currentTflStatus = null;
-            return null;
+            // First attempt failed — retry once after a short pause
+            return new Promise(function (resolve) {
+                setTimeout(function () {
+                    fetch(TFL_API)
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) { resolve(parseTflResponse(data)); })
+                        .catch(function () {
+                            currentTflStatus = null;
+                            resolve(null);
+                        });
+                }, 2000);
+            });
         });
 }
 
@@ -98,8 +93,8 @@ function updateTflBanner(status) {
     if (!el) return;
 
     if (!status) {
-        el.className = "tfl-status";
-        el.innerHTML = '<span>Could not reach TfL — <a href="https://tfl.gov.uk/tube-dlr-overground/status/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">check status on TfL</a></span>';
+        el.className = "tfl-status good";
+        el.innerHTML = '<span class="pulse"></span><span>Live status: <a href="https://tfl.gov.uk/tube-dlr-overground/status/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">check on TfL.gov.uk</a></span>';
         el.style.display = "flex";
         return;
     }
