@@ -30,11 +30,11 @@
         <div class="demo-toggle-bar">
             <label class="demo-toggle-label" for="demo-toggle">
                 <input type="checkbox" id="demo-toggle" onchange="toggleDemoMode()">
-                <span>Show demo data</span>
+                <span>Show dummy data</span>
             </label>
         </div>
         <div id="demo-banner" class="demo-banner" style="display: none;">
-            Viewing demo data — not real reports
+            Viewing dummy data — not real reports
         </div>
 
         <!-- Time lost hero -->
@@ -71,8 +71,12 @@
 
         <!-- TfL reliability chart -->
         <div class="card">
-            <div class="card-title">District line reliability (last 14 days)</div>
+            <div class="card-title">District line reliability — all branches (last 14 days)</div>
             <div id="reliability-chart" class="bar-chart"></div>
+            <div style="margin-top: 20px;">
+                <div class="card-title">Wimbledon branch reliability (last 14 days)</div>
+                <div id="reliability-wimbledon-chart" class="bar-chart"></div>
+            </div>
             <div id="reliability-summary"></div>
         </div>
 

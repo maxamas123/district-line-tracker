@@ -128,11 +128,17 @@ function renderReport(r) {
         severity === "moderate" ? "#856404" : "#0C5460";
 
     var discrepancy = "";
-    if (r.tfl_status_severity >= 10 && r.delay_minutes && r.delay_minutes > 0) {
-        discrepancy =
-            '<div style="margin-top: 8px; padding: 6px 10px; background: #FFF3CD; border-radius: 6px; font-size: 12px; color: #856404;">' +
-            'TfL said "Good Service" when this ' + r.delay_minutes + '-min delay was reported' +
-            '</div>';
+    if (r.delay_minutes && r.delay_minutes > 0) {
+        var branchRelevance = typeof getWimbledonBranchRelevance === "function"
+            ? getWimbledonBranchRelevance(r.tfl_status_reason)
+            : "unknown";
+        var wimbledonClear = (r.tfl_status_severity >= 10) || (branchRelevance === "other-branch");
+        if (wimbledonClear) {
+            discrepancy =
+                '<div style="margin-top: 8px; padding: 6px 10px; background: #FFF3CD; border-radius: 6px; font-size: 12px; color: #856404;">' +
+                'TfL had no reports of issues on the Wimbledon branch when this ' + r.delay_minutes + '-min delay was reported' +
+                '</div>';
+        }
     }
 
     // Check if this is the user's own report

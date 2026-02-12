@@ -490,11 +490,17 @@ function buildCategoryChart(reports) {
         catMap[c] = (catMap[c] || 0) + 1;
     }
 
+    // Sort highest to lowest frequency
     var cats = Object.keys(catMap).sort(function (a, b) { return catMap[b] - catMap[a]; });
 
-    var colors = ["red", "amber", "green", "amber", "red", "green", "amber", "red", "green"];
-    var data = cats.map(function (c, i) {
-        return { label: c, value: catMap[c], display: catMap[c] + "", color: colors[i % colors.length] };
+    // Graded colours: red (most frequent) → amber (mid) → green (least frequent)
+    var data = cats.map(function (c, idx) {
+        var ratio = cats.length > 1 ? idx / (cats.length - 1) : 0;
+        var color;
+        if (ratio <= 0.3) color = "red";
+        else if (ratio <= 0.65) color = "amber";
+        else color = "green";
+        return { label: c, value: catMap[c], display: catMap[c] + "", color: color };
     });
 
     renderBarChart("category-chart", data);
@@ -535,15 +541,81 @@ function buildDiscrepancyStats(reports) {
 
 /* ---- TfL reliability chart (from tfl_status_log) ---- */
 
+function renderReliabilityData(dayOrder, dayMap, wimbledonMap) {
+    var container = document.getElementById("reliability-chart");
+    var wimbContainer = document.getElementById("reliability-wimbledon-chart");
+
+    // All-branches chart
+    var data = dayOrder.map(function (day) {
+        var info = dayMap[day];
+        var disruptedMins = info.disrupted * 15;
+        var pct = info.total > 0 ? Math.round(info.disrupted / info.total * 100) : 0;
+        var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
+        var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
+        var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+        return { label: label, value: pct, display: display, color: color };
+    });
+    renderBarChart("reliability-chart", data);
+
+    // Wimbledon branch chart
+    if (wimbContainer && wimbledonMap) {
+        var wimbData = dayOrder.map(function (day) {
+            var total = dayMap[day].total;
+            var wDisrupted = wimbledonMap[day] || 0;
+            var disruptedMins = wDisrupted * 15;
+            var pct = total > 0 ? Math.round(wDisrupted / total * 100) : 0;
+            var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
+            var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
+            var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+            return { label: label, value: pct, display: display, color: color };
+        });
+        renderBarChart("reliability-wimbledon-chart", wimbData);
+    }
+
+    // Summary
+    var totalDays = dayOrder.length;
+    var goodDaysAll = dayOrder.filter(function (d) { return dayMap[d].disrupted === 0; }).length;
+    var totalDisruptedMins = dayOrder.reduce(function (sum, d) { return sum + dayMap[d].disrupted * 15; }, 0);
+    var goodDaysWimb = wimbledonMap ? dayOrder.filter(function (d) { return (wimbledonMap[d] || 0) === 0; }).length : totalDays;
+    var totalWimbDisruptedMins = wimbledonMap ? dayOrder.reduce(function (sum, d) { return sum + (wimbledonMap[d] || 0) * 15; }, 0) : 0;
+
+    var summaryEl = document.getElementById("reliability-summary");
+    if (summaryEl) {
+        var summaryHtml = '<p style="font-size: 13px; color: var(--text-muted); margin-top: 12px;">' +
+            '<strong>All branches:</strong> ' + goodDaysAll + ' of ' + totalDays + ' days with uninterrupted service. ' +
+            'Approx. ' + formatHours(totalDisruptedMins) + ' of disruptions recorded.';
+        if (wimbledonMap) {
+            summaryHtml += '<br><strong>Wimbledon branch:</strong> ' + goodDaysWimb + ' of ' + totalDays + ' days with uninterrupted service. ' +
+                'Approx. ' + formatHours(totalWimbDisruptedMins) + ' of disruptions recorded.';
+        }
+        summaryHtml += '<br>Based on TfL status checks every 15 minutes.</p>';
+        summaryEl.innerHTML = summaryHtml;
+    }
+}
+
 function buildReliabilityChart() {
     var container = document.getElementById("reliability-chart");
     if (!container) return;
 
-    // Demo mode: show placeholder
+    // Dummy mode: use static DEMO_TFL_DAILY data
     if (typeof isDemoMode === "function" && isDemoMode()) {
-        container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">TfL status history not available in demo mode.</p>';
-        var summaryEl = document.getElementById("reliability-summary");
-        if (summaryEl) summaryEl.innerHTML = "";
+        if (typeof DEMO_TFL_DAILY === "undefined" || !DEMO_TFL_DAILY.length) {
+            container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">No dummy TfL reliability data available.</p>';
+            return;
+        }
+
+        var dayOrder = [];
+        var dayMap = {};
+        var wimbledonMap = {};
+
+        for (var i = 0; i < DEMO_TFL_DAILY.length; i++) {
+            var entry = DEMO_TFL_DAILY[i];
+            dayOrder.push(entry.date);
+            dayMap[entry.date] = { total: entry.total, disrupted: entry.disrupted };
+            wimbledonMap[entry.date] = entry.wimbledon_disrupted || 0;
+        }
+
+        renderReliabilityData(dayOrder, dayMap, wimbledonMap);
         return;
     }
 
@@ -561,46 +633,30 @@ function buildReliabilityChart() {
             // Group snapshots by date
             var dayMap = {};
             var dayOrder = [];
+            var wimbledonMap = {};
+
             for (var i = 0; i < logs.length; i++) {
                 var log = logs[i];
                 var day = log.checked_at.split("T")[0];
                 if (!dayMap[day]) {
                     dayMap[day] = { total: 0, disrupted: 0 };
+                    wimbledonMap[day] = 0;
                     dayOrder.push(day);
                 }
                 dayMap[day].total++;
                 if (log.status_severity < 10) {
                     dayMap[day].disrupted++;
+                    // Check if this disruption affected the Wimbledon branch
+                    if (typeof getWimbledonBranchRelevance === "function") {
+                        var relevance = getWimbledonBranchRelevance(log.reason || "");
+                        if (relevance === "affected" || relevance === "unknown") {
+                            wimbledonMap[day]++;
+                        }
+                    }
                 }
             }
 
-            // Build chart data — each snapshot ≈ 15 minutes
-            var data = dayOrder.map(function (day) {
-                var info = dayMap[day];
-                var disruptedMins = info.disrupted * 15;
-                var pct = Math.round(info.disrupted / info.total * 100);
-                var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
-                var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
-                var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-
-                return { label: label, value: pct, display: display, color: color };
-            });
-
-            renderBarChart("reliability-chart", data);
-
-            // Summary
-            var totalDays = dayOrder.length;
-            var goodDays = dayOrder.filter(function (d) { return dayMap[d].disrupted === 0; }).length;
-            var totalDisruptedMins = dayOrder.reduce(function (sum, d) { return sum + dayMap[d].disrupted * 15; }, 0);
-
-            var summaryEl = document.getElementById("reliability-summary");
-            if (summaryEl) {
-                summaryEl.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">' +
-                    goodDays + ' of ' + totalDays + ' days with uninterrupted service. ' +
-                    'Approx. ' + formatHours(totalDisruptedMins) + ' of disruptions recorded in total. ' +
-                    'Based on TfL status checks every 15 minutes.' +
-                '</p>';
-            }
+            renderReliabilityData(dayOrder, dayMap, wimbledonMap);
         })
         .catch(function () {
             container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">Could not load TfL status data.</p>';

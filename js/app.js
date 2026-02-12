@@ -379,7 +379,7 @@ function doUpvote(reportId, btnEl) {
             btnEl.classList.remove("voted");
             btnEl.title = "Tap if you experienced this too";
             updateAffectedStats(reportId, newCount, btnEl);
-            showToast("Your confirmation has been removed (demo)", "success");
+            showToast("Your confirmation has been removed (dummy)", "success");
         } else {
             var newCount = currentCount + 1;
             markUpvoted(reportId);
@@ -387,7 +387,7 @@ function doUpvote(reportId, btnEl) {
             btnEl.classList.add("voted");
             btnEl.title = "Tap again to remove your confirmation";
             updateAffectedStats(reportId, newCount, btnEl);
-            showToast("Confirmed (demo) — your time lost has been added", "success");
+            showToast("Confirmed (dummy) — your time lost has been added", "success");
         }
 
         btnEl.disabled = false;
@@ -831,7 +831,8 @@ function initReportForm() {
             var rowForNote = {
                 delay_minutes: rpcArgs.p_delay_minutes,
                 tfl_status_severity: rpcArgs.p_tfl_status_severity,
-                tfl_status_description: rpcArgs.p_tfl_status_description
+                tfl_status_description: rpcArgs.p_tfl_status_description,
+                tfl_status_reason: rpcArgs.p_tfl_status_reason
             };
 
             return supabaseRpc("create_report", rpcArgs)
@@ -910,6 +911,7 @@ function showDiscrepancyNote(row, isHistorical) {
 
     var tflSeverity = row.tfl_status_severity;
     var tflDescription = row.tfl_status_description;
+    var tflReason = row.tfl_status_reason || null;
     if (tflSeverity == null) {
         noteEl.style.display = "none";
         return;
@@ -917,22 +919,25 @@ function showDiscrepancyNote(row, isHistorical) {
 
     var tflSaysGood = tflSeverity >= 10;
     var userReportsDelay = row.delay_minutes && row.delay_minutes > 0;
-    var verb = isHistorical ? "was reporting" : "currently reports";
-    var verbAlt = isHistorical ? "TfL was reporting" : "TfL is currently reporting";
 
-    if (tflSaysGood && userReportsDelay) {
+    // Check if disruption is on another branch (Wimbledon branch effectively clear)
+    var branchRelevance = getWimbledonBranchRelevance(tflReason);
+    var wimbledonClear = tflSaysGood || branchRelevance === "other-branch";
+
+    if (wimbledonClear && userReportsDelay) {
         noteEl.className = "discrepancy-note mismatch";
         noteEl.innerHTML =
-            "<strong>Discrepancy recorded.</strong> TfL " + verb + " " +
-            '"Good Service" on the District line, but you experienced a ' +
-            row.delay_minutes + '-minute delay. ' +
+            "<strong>Discrepancy recorded.</strong> TfL had no reports of issues on the Wimbledon branch when you " +
+            (isHistorical ? "made" : "submitted") + " this report, but you experienced a " +
+            row.delay_minutes + "-minute delay. " +
             "This mismatch has been logged and will be included in reports to your MP.";
         noteEl.style.display = "block";
-    } else if (!tflSaysGood && userReportsDelay) {
+    } else if (!tflSaysGood && userReportsDelay && branchRelevance !== "other-branch") {
+        var verbAlt = isHistorical ? "TfL was reporting" : "TfL is currently reporting";
         noteEl.className = "discrepancy-note match";
         noteEl.innerHTML =
             verbAlt + ": <strong>" + tflDescription +
-            "</strong>. Your report helps document the real-world impact.";
+            "</strong>. Your report helps document the real-world impact on the Wimbledon branch.";
         noteEl.style.display = "block";
     } else {
         noteEl.style.display = "none";
