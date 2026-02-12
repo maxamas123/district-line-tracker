@@ -6,9 +6,13 @@
  * we can look up what TfL *said* the service status was at that time
  * vs what passengers actually experienced.
  *
- * Set these environment variables in Netlify (Site > Environment variables):
- *   SUPABASE_URL       - e.g. https://abcdef.supabase.co
- *   SUPABASE_SERVICE_KEY - your service_role key (NOT the anon key)
+ * Environment variables (set in Netlify > Site > Environment variables):
+ *   SUPABASE_URL         - e.g. https://abcdef.supabase.co
+ *   SUPABASE_SERVICE_KEY  - your service_role key (preferred)
+ *   SUPABASE_ANON_KEY     - your anon/public key (fallback)
+ *
+ * The function uses SUPABASE_SERVICE_KEY if available (bypasses RLS),
+ * otherwise falls back to SUPABASE_ANON_KEY.
  */
 
 export const config = {
@@ -17,16 +21,20 @@ export const config = {
 
 export default async function handler() {
     const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+    const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
 
     if (!SUPABASE_URL || !SUPABASE_KEY) {
-        console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_KEY env vars");
+        console.error("Missing env vars. Need SUPABASE_URL and either SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY");
         return new Response("Config error", { status: 500 });
     }
 
     try {
         // 1. Fetch District line status from TfL
         const tflRes = await fetch("https://api.tfl.gov.uk/Line/district/Status");
+        if (!tflRes.ok) {
+            console.error("TfL API returned status:", tflRes.status);
+            return new Response("TfL API error", { status: 502 });
+        }
         const tflData = await tflRes.json();
 
         const statuses = tflData[0]?.lineStatuses;

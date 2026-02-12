@@ -968,13 +968,44 @@ function showDiscrepancyNote(row, isHistorical) {
 }
 
 
+/* ---- Client-side TfL status logging ---- */
+/* Writes current TfL status to tfl_status_log if no entry exists within
+   the last 14 minutes. This supplements the Netlify cron so data
+   accumulates whenever anyone visits the site. */
+
+function logTflStatusToDb(status) {
+    if (!status) return;
+
+    // Check if there's already a recent entry (within 14 minutes)
+    var cutoff = new Date(Date.now() - 14 * 60 * 1000).toISOString();
+    supabaseSelect("tfl_status_log", "checked_at=gte." + encodeURIComponent(cutoff) + "&limit=1")
+        .then(function (rows) {
+            if (rows && rows.length > 0) return; // Already have a recent entry
+
+            // No recent entry — log this one
+            var row = {
+                status_severity: status.severity,
+                status_description: status.description,
+                reason: status.reason || null
+            };
+
+            return supabaseInsert("tfl_status_log", row);
+        })
+        .then(function () {
+            // Logged successfully (or skipped)
+        })
+        .catch(function () {
+            // Silent fail — logging is best-effort
+        });
+}
+
+
 /* ---- Init on page load ---- */
 
-// Only fetch TfL status on pages that need it (report form / banner)
-if (document.getElementById("tfl-live-status") || document.getElementById("report-form")) {
-    fetchTflStatus().then(function (status) {
-        updateTflBanner(status);
-    });
-}
+// Fetch TfL status on all pages — needed for logging and banner
+fetchTflStatus().then(function (status) {
+    updateTflBanner(status);
+    logTflStatusToDb(status);
+});
 
 initReportForm();
