@@ -470,7 +470,7 @@ var STATIONS_LIST = [
 
 var CATEGORIES_LIST = [
     "General Delays", "Signal Failure", "Overcrowding", "Train Cancellation",
-    "Reduced Service", "No Announcements / Poor Comms", "Safety Concern", "Other"
+    "Reduced Service", "Poor Comms", "Safety Concern", "Other"
 ];
 
 var DIRECTIONS_LIST = [

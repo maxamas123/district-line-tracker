@@ -314,7 +314,12 @@ function buildStatsGrid(reports) {
         : 0;
 
     var discrepancies = reports.filter(function (r) {
-        return r.tfl_status_severity >= 10 && r.delay_minutes && r.delay_minutes > 0;
+        if (!r.delay_minutes || r.delay_minutes <= 0) return false;
+        if (r.tfl_status_severity >= 10) return true; // Good Service
+        if (typeof getWimbledonBranchRelevance === "function") {
+            return getWimbledonBranchRelevance(r.tfl_status_reason) === "other-branch";
+        }
+        return false;
     }).length;
 
     var grid = document.getElementById("stats-grid");
@@ -512,16 +517,25 @@ function buildDiscrepancyStats(reports) {
     if (!container) return;
 
     var withDelay = reports.filter(function (r) { return r.delay_minutes && r.delay_minutes > 0; });
-    var goodServiceDuringDelay = withDelay.filter(function (r) { return r.tfl_status_severity >= 10; });
-    var pct = withDelay.length > 0 ? Math.round(goodServiceDuringDelay.length / withDelay.length * 100) : 0;
+
+    // Count reports where Wimbledon branch had no reported issues:
+    // either TfL said Good Service, or disruption was on another branch
+    var wimbledonClearDuringDelay = withDelay.filter(function (r) {
+        if (r.tfl_status_severity >= 10) return true; // Good Service
+        if (typeof getWimbledonBranchRelevance === "function") {
+            return getWimbledonBranchRelevance(r.tfl_status_reason) === "other-branch";
+        }
+        return false;
+    });
+    var pct = withDelay.length > 0 ? Math.round(wimbledonClearDuringDelay.length / withDelay.length * 100) : 0;
 
     var barColor = pct > 60 ? "red" : pct > 30 ? "amber" : "green";
 
     container.innerHTML =
         '<p style="font-size: 14px; margin-bottom: 12px; color: var(--text);">' +
             'Of <strong>' + withDelay.length + '</strong> reports where a delay was experienced, ' +
-            '<strong style="color: var(--red);">' + goodServiceDuringDelay.length + ' (' + pct + '%)</strong> ' +
-            'were submitted while TfL officially reported "Good Service" on the District line.' +
+            '<strong style="color: var(--red);">' + wimbledonClearDuringDelay.length + ' (' + pct + '%)</strong> ' +
+            'were submitted while TfL had no reported issues on the Wimbledon branch.' +
         '</p>' +
         '<div class="bar-chart">' +
             '<div class="bar-row">' +
@@ -533,7 +547,7 @@ function buildDiscrepancyStats(reports) {
             '</div>' +
         '</div>' +
         '<p style="font-size: 12px; color: var(--text-muted); margin-top: 12px;">' +
-            'This means TfL\'s status page was misleading for ' + pct + '% of reported delays. ' +
+            'This means TfL had no reported issues on the Wimbledon branch for ' + pct + '% of reported delays. ' +
             'This data is shared with your local MP to push for accurate status reporting and service investment.' +
         '</p>';
 }
@@ -541,35 +555,96 @@ function buildDiscrepancyStats(reports) {
 
 /* ---- TfL reliability chart (from tfl_status_log) ---- */
 
-function renderReliabilityData(dayOrder, dayMap, wimbledonMap) {
-    var container = document.getElementById("reliability-chart");
-    var wimbContainer = document.getElementById("reliability-wimbledon-chart");
+function renderReliabilitySVG(containerId, data) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
 
-    // All-branches chart
-    var data = dayOrder.map(function (day) {
+    if (data.length === 0) {
+        container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">No data yet</p>';
+        return;
+    }
+
+    var svgW = 560;
+    var svgH = 180;
+    var padL = 8;
+    var padR = 8;
+    var padT = 6;
+    var padB = 46;
+    var chartW = svgW - padL - padR;
+    var chartH = svgH - padT - padB;
+
+    var n = data.length;
+    var barGap = 3;
+    var barW = Math.max(14, Math.floor((chartW - (n - 1) * barGap) / n));
+    var totalBarsW = n * barW + (n - 1) * barGap;
+    var offsetX = padL + Math.floor((chartW - totalBarsW) / 2);
+
+    // Max disrupted minutes for scale
+    var maxDisrupted = Math.max.apply(null, data.map(function (d) { return d.disruptedMins; }));
+    if (maxDisrupted === 0) maxDisrupted = 60; // default scale if all good
+
+    var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width: 100%; height: auto; display: block; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">';
+
+    // Background: light green area to represent "good service"
+    svg += '<rect x="' + padL + '" y="' + padT + '" width="' + chartW + '" height="' + chartH + '" rx="4" fill="#E8F5EE" opacity="0.5"/>';
+
+    // Bars
+    for (var i = 0; i < n; i++) {
+        var d = data[i];
+        var bx = offsetX + i * (barW + barGap);
+
+        if (d.disruptedMins === 0) {
+            // Good day: green tick column
+            svg += '<rect x="' + bx + '" y="' + padT + '" width="' + barW + '" height="' + chartH + '" rx="3" fill="#00843D" opacity="0.15"/>';
+            svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH / 2 + 5) + '" text-anchor="middle" font-size="14" fill="#00843D" font-weight="700">\u2713</text>';
+        } else {
+            // Disrupted day: red/amber bar from bottom
+            var barH = Math.max(6, d.disruptedMins / maxDisrupted * chartH);
+            var color = d.disruptedMins >= 120 ? "#DC3545" : d.disruptedMins >= 30 ? "#F0AD4E" : "#F0AD4E";
+            svg += '<rect x="' + bx + '" y="' + (padT + chartH - barH) + '" width="' + barW + '" height="' + barH + '" rx="3" fill="' + color + '" opacity="0.85"/>';
+            // Value label on top
+            var label = d.disruptedMins >= 60 ? formatHours(d.disruptedMins) : d.disruptedMins + "m";
+            svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH - barH - 4) + '" text-anchor="middle" font-size="8" font-weight="700" fill="' + color + '">' + escapeHtml(label) + '</text>';
+        }
+
+        // X-axis label — date (two lines: day name + date)
+        var dayShort = d.dayName;
+        var dateNum = d.dateNum;
+        svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH + 14) + '" text-anchor="middle" font-size="9" font-weight="600" fill="#1A1A2E">' + escapeHtml(dayShort) + '</text>';
+        svg += '<text x="' + (bx + barW / 2) + '" y="' + (padT + chartH + 26) + '" text-anchor="middle" font-size="8" fill="#6C757D">' + escapeHtml(dateNum) + '</text>';
+    }
+
+    svg += '</svg>';
+    container.innerHTML = svg;
+}
+
+function renderReliabilityData(dayOrder, dayMap, wimbledonMap) {
+    // Build data arrays for SVG chart
+    var allData = dayOrder.map(function (day) {
         var info = dayMap[day];
         var disruptedMins = info.disrupted * 15;
-        var pct = info.total > 0 ? Math.round(info.disrupted / info.total * 100) : 0;
-        var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
-        var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
-        var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-        return { label: label, value: pct, display: display, color: color };
+        var d = new Date(day + "T12:00:00");
+        return {
+            disruptedMins: disruptedMins,
+            dayName: d.toLocaleDateString("en-GB", { weekday: "short" }),
+            dateNum: d.getDate() + "/" + (d.getMonth() + 1)
+        };
     });
-    renderBarChart("reliability-chart", data);
+    renderReliabilitySVG("reliability-chart", allData);
 
     // Wimbledon branch chart
-    if (wimbContainer && wimbledonMap) {
+    if (wimbledonMap) {
         var wimbData = dayOrder.map(function (day) {
-            var total = dayMap[day].total;
             var wDisrupted = wimbledonMap[day] || 0;
             var disruptedMins = wDisrupted * 15;
-            var pct = total > 0 ? Math.round(wDisrupted / total * 100) : 0;
-            var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
-            var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
-            var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-            return { label: label, value: pct, display: display, color: color };
+            var d = new Date(day + "T12:00:00");
+            return {
+                disruptedMins: disruptedMins,
+                dayName: d.toLocaleDateString("en-GB", { weekday: "short" }),
+                dateNum: d.getDate() + "/" + (d.getMonth() + 1)
+            };
         });
-        renderBarChart("reliability-wimbledon-chart", wimbData);
+        renderReliabilitySVG("reliability-wimbledon-chart", wimbData);
     }
 
     // Summary
