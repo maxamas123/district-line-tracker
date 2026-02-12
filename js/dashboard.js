@@ -533,6 +533,81 @@ function buildDiscrepancyStats(reports) {
 }
 
 
+/* ---- TfL reliability chart (from tfl_status_log) ---- */
+
+function buildReliabilityChart() {
+    var container = document.getElementById("reliability-chart");
+    if (!container) return;
+
+    // Demo mode: show placeholder
+    if (typeof isDemoMode === "function" && isDemoMode()) {
+        container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">TfL status history not available in demo mode.</p>';
+        var summaryEl = document.getElementById("reliability-summary");
+        if (summaryEl) summaryEl.innerHTML = "";
+        return;
+    }
+
+    var fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+    var dateParam = fourteenDaysAgo.toISOString();
+
+    supabaseSelect("tfl_status_log", "checked_at=gte." + encodeURIComponent(dateParam) + "&order=checked_at.asc")
+        .then(function (logs) {
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">No TfL status history yet. Data is captured every 15 minutes.</p>';
+                return;
+            }
+
+            // Group snapshots by date
+            var dayMap = {};
+            var dayOrder = [];
+            for (var i = 0; i < logs.length; i++) {
+                var log = logs[i];
+                var day = log.checked_at.split("T")[0];
+                if (!dayMap[day]) {
+                    dayMap[day] = { total: 0, disrupted: 0 };
+                    dayOrder.push(day);
+                }
+                dayMap[day].total++;
+                if (log.status_severity < 10) {
+                    dayMap[day].disrupted++;
+                }
+            }
+
+            // Build chart data — each snapshot ≈ 15 minutes
+            var data = dayOrder.map(function (day) {
+                var info = dayMap[day];
+                var disruptedMins = info.disrupted * 15;
+                var pct = Math.round(info.disrupted / info.total * 100);
+                var color = pct === 0 ? "green" : pct <= 20 ? "amber" : "red";
+                var display = disruptedMins === 0 ? "\u2713" : formatHours(disruptedMins);
+                var label = new Date(day + "T12:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+
+                return { label: label, value: pct, display: display, color: color };
+            });
+
+            renderBarChart("reliability-chart", data);
+
+            // Summary
+            var totalDays = dayOrder.length;
+            var goodDays = dayOrder.filter(function (d) { return dayMap[d].disrupted === 0; }).length;
+            var totalDisruptedMins = dayOrder.reduce(function (sum, d) { return sum + dayMap[d].disrupted * 15; }, 0);
+
+            var summaryEl = document.getElementById("reliability-summary");
+            if (summaryEl) {
+                summaryEl.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); margin-top: 8px;">' +
+                    goodDays + ' of ' + totalDays + ' days with uninterrupted service. ' +
+                    'Approx. ' + formatHours(totalDisruptedMins) + ' of disruptions recorded in total. ' +
+                    'Based on TfL status checks every 15 minutes.' +
+                '</p>';
+            }
+        })
+        .catch(function () {
+            container.innerHTML = '<p style="font-size: 13px; color: var(--text-muted); text-align: center; padding: 16px;">Could not load TfL status data.</p>';
+        });
+}
+
+
 /* ---- Toggle patterns section ---- */
 
 var patternsVisible = false;
@@ -557,3 +632,4 @@ function togglePatterns() {
 /* ---- Init ---- */
 if (typeof initDemoToggle === "function") initDemoToggle();
 loadDashboard();
+buildReliabilityChart();

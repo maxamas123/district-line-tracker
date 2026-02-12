@@ -29,10 +29,18 @@ export default async function handler() {
         const tflRes = await fetch("https://api.tfl.gov.uk/Line/district/Status");
         const tflData = await tflRes.json();
 
-        const lineStatus = tflData[0]?.lineStatuses?.[0];
-        if (!lineStatus) {
+        const statuses = tflData[0]?.lineStatuses;
+        if (!statuses || statuses.length === 0) {
             console.error("Unexpected TfL response shape");
             return new Response("TfL parse error", { status: 500 });
+        }
+
+        // Pick the worst status (lowest severity = most disruptive)
+        let lineStatus = statuses[0];
+        for (let i = 1; i < statuses.length; i++) {
+            if (statuses[i].statusSeverity < lineStatus.statusSeverity) {
+                lineStatus = statuses[i];
+            }
         }
 
         // 2. Write to Supabase tfl_status_log table

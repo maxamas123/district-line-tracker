@@ -187,6 +187,21 @@ body {
     color: white;
 }
 
+.tfl-status.minor,
+.tfl-status.severe {
+    flex-direction: column;
+    border-radius: var(--radius);
+    width: 100%;
+    padding: 10px 16px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.tfl-status.minor .pulse,
+.tfl-status.severe .pulse {
+    display: none;
+}
+
 .tfl-status.minor {
     background: var(--amber);
     color: #333;
@@ -195,6 +210,42 @@ body {
 .tfl-status.severe {
     background: var(--red);
     color: white;
+}
+
+.tfl-reason {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.92;
+    margin-top: 4px;
+}
+
+.tfl-branch-note {
+    display: block;
+    font-size: 12px;
+    font-style: italic;
+    font-weight: 400;
+    margin-top: 4px;
+    opacity: 0.85;
+}
+
+.tfl-branch-warn {
+    font-weight: 600;
+    opacity: 1;
+}
+
+.tfl-link {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 500;
+    color: inherit;
+    text-decoration: underline;
+    opacity: 0.8;
+    margin-top: 6px;
+}
+
+.tfl-link:hover {
+    opacity: 1;
 }
 
 .tfl-status .pulse {

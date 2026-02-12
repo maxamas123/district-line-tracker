@@ -14,16 +14,59 @@ var SUPABASE_ANON_KEY = "sb_publishable_Mdg7Ho_4EGfYeX98I9_TOg_XIS5C9Ky";
 var TFL_API = "https://api.tfl.gov.uk/Line/district/Status";
 var currentTflStatus = null;
 
+/* Wimbledon branch stations for checking disruption relevance */
+var WIMBLEDON_BRANCH_NAMES = [
+    "wimbledon", "wimbledon park", "southfields", "east putney",
+    "putney bridge", "parsons green", "fulham broadway", "west brompton",
+    "earls court", "earl's court"
+];
+
+function getWimbledonBranchRelevance(reason) {
+    if (!reason) return "unknown";
+    var lower = reason.toLowerCase();
+
+    for (var i = 0; i < WIMBLEDON_BRANCH_NAMES.length; i++) {
+        if (lower.indexOf(WIMBLEDON_BRANCH_NAMES[i]) !== -1) return "affected";
+    }
+
+    /* Stations/areas clearly on other branches or the eastern trunk */
+    var otherPatterns = [
+        "upminster", "tower hill", "barking", "dagenham", "hornchurch",
+        "east ham", "upton park", "plaistow", "west ham", "bow road",
+        "mile end", "stepney green", "whitechapel", "aldgate east",
+        "richmond", "kew", "turnham green", "gunnersbury",
+        "ealing", "acton", "chiswick", "edgware road"
+    ];
+
+    for (var j = 0; j < otherPatterns.length; j++) {
+        if (lower.indexOf(otherPatterns[j]) !== -1) return "other-branch";
+    }
+
+    return "unknown";
+}
+
+function escapeHtmlChars(str) {
+    if (!str) return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 function fetchTflStatus() {
     return fetch(TFL_API)
         .then(function (res) { return res.json(); })
         .then(function (data) {
-            if (data && data[0] && data[0].lineStatuses && data[0].lineStatuses[0]) {
-                var status = data[0].lineStatuses[0];
+            if (data && data[0] && data[0].lineStatuses && data[0].lineStatuses.length > 0) {
+                var statuses = data[0].lineStatuses;
+                // Pick the worst status (lowest severity = most disruptive)
+                var worst = statuses[0];
+                for (var i = 1; i < statuses.length; i++) {
+                    if (statuses[i].statusSeverity < worst.statusSeverity) {
+                        worst = statuses[i];
+                    }
+                }
                 currentTflStatus = {
-                    severity: status.statusSeverity,
-                    description: status.statusSeverityDescription,
-                    reason: status.reason || null
+                    severity: worst.statusSeverity,
+                    description: worst.statusSeverityDescription,
+                    reason: worst.reason || null
                 };
             }
             return currentTflStatus;
@@ -36,19 +79,35 @@ function fetchTflStatus() {
 
 function updateTflBanner(status) {
     var el = document.getElementById("tfl-live-status");
-    var textEl = document.getElementById("tfl-status-text");
-    if (!el || !textEl || !status) return;
+    if (!el || !status) return;
 
     el.style.display = "flex";
-    textEl.textContent = "TfL says: " + status.description;
-
     el.className = "tfl-status";
+
     if (status.severity >= 10) {
         el.classList.add("good");
-    } else if (status.severity >= 9) {
-        el.classList.add("minor");
+        el.innerHTML = '<span class="pulse"></span><span>TfL says: ' + escapeHtmlChars(status.description) + '</span>';
     } else {
-        el.classList.add("severe");
+        el.classList.add(status.severity >= 9 ? "minor" : "severe");
+
+        var html = '<span class="pulse"></span>';
+        html += '<span class="tfl-main">TfL says: <strong>' + escapeHtmlChars(status.description) + '</strong></span>';
+
+        if (status.reason) {
+            var reasonClean = status.reason.replace(/^District Line:\s*/i, "").trim();
+            html += '<span class="tfl-reason">' + escapeHtmlChars(reasonClean) + '</span>';
+        }
+
+        var branch = getWimbledonBranchRelevance(status.reason);
+        if (branch === "other-branch") {
+            html += '<span class="tfl-branch-note">This disruption appears to be on another part of the District line</span>';
+        } else if (branch === "affected") {
+            html += '<span class="tfl-branch-note tfl-branch-warn">This disruption affects the Wimbledon branch</span>';
+        }
+
+        html += '<a href="https://tfl.gov.uk/tube-dlr-overground/status/" target="_blank" rel="noopener" class="tfl-link">View on TfL \u2197</a>';
+
+        el.innerHTML = html;
     }
 }
 
