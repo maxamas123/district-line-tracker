@@ -566,8 +566,8 @@ function renderReliabilitySVG(containerId, data) {
 
     var svgW = 560;
     var svgH = 180;
-    var padL = 8;
-    var padR = 8;
+    var padL = 24;
+    var padR = 24;
     var padT = 6;
     var padB = 46;
     var chartW = svgW - padL - padR;
@@ -583,7 +583,7 @@ function renderReliabilitySVG(containerId, data) {
     var maxDisrupted = Math.max.apply(null, data.map(function (d) { return d.disruptedMins; }));
     if (maxDisrupted === 0) maxDisrupted = 60; // default scale if all good
 
-    var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width: 100%; height: auto; display: block; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">';
+    var svg = '<svg viewBox="0 0 ' + svgW + ' ' + svgH + '" style="width: 100%; height: auto; display: block; overflow: visible; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', sans-serif;">';
 
     // Background: light green area to represent "good service"
     svg += '<rect x="' + padL + '" y="' + padT + '" width="' + chartW + '" height="' + chartH + '" rx="4" fill="#E8F5EE" opacity="0.5"/>';
@@ -752,10 +752,10 @@ function togglePatterns() {
 
     if (patternsVisible) {
         container.style.display = "block";
-        btn.textContent = "Hide reporting patterns ▲";
+        btn.innerHTML = "Hide reliability &amp; patterns \u25B2";
     } else {
         container.style.display = "none";
-        btn.textContent = "Show reporting patterns ▼";
+        btn.innerHTML = "Show reliability &amp; patterns \u25BC";
     }
 }
 

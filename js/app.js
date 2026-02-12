@@ -50,8 +50,24 @@ function escapeHtmlChars(str) {
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+function fetchWithTimeout(url, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+        var timer = setTimeout(function () {
+            reject(new Error("Request timed out"));
+        }, timeoutMs);
+
+        fetch(url).then(function (res) {
+            clearTimeout(timer);
+            resolve(res);
+        }).catch(function (err) {
+            clearTimeout(timer);
+            reject(err);
+        });
+    });
+}
+
 function fetchTflStatus() {
-    return fetch(TFL_API)
+    return fetchWithTimeout(TFL_API, 8000)
         .then(function (res) { return res.json(); })
         .then(function (data) {
             if (data && data[0] && data[0].lineStatuses && data[0].lineStatuses.length > 0) {
@@ -79,7 +95,14 @@ function fetchTflStatus() {
 
 function updateTflBanner(status) {
     var el = document.getElementById("tfl-live-status");
-    if (!el || !status) return;
+    if (!el) return;
+
+    if (!status) {
+        el.className = "tfl-status";
+        el.innerHTML = '<span>Could not reach TfL — <a href="https://tfl.gov.uk/tube-dlr-overground/status/" target="_blank" rel="noopener" style="color: inherit; text-decoration: underline;">check status on TfL</a></span>';
+        el.style.display = "flex";
+        return;
+    }
 
     el.style.display = "flex";
     el.className = "tfl-status";
@@ -947,8 +970,11 @@ function showDiscrepancyNote(row, isHistorical) {
 
 /* ---- Init on page load ---- */
 
-fetchTflStatus().then(function (status) {
-    updateTflBanner(status);
-});
+// Only fetch TfL status on pages that need it (report form / banner)
+if (document.getElementById("tfl-live-status") || document.getElementById("report-form")) {
+    fetchTflStatus().then(function (status) {
+        updateTflBanner(status);
+    });
+}
 
 initReportForm();

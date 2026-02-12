@@ -37,17 +37,6 @@
             Viewing dummy data — not real reports
         </div>
 
-        <!-- TfL reliability chart -->
-        <div class="card">
-            <div class="card-title">District line reliability — all branches (last 14 days)</div>
-            <div id="reliability-chart"></div>
-            <div style="margin-top: 20px;">
-                <div class="card-title">Wimbledon branch reliability (last 14 days)</div>
-                <div id="reliability-wimbledon-chart"></div>
-            </div>
-            <div id="reliability-summary"></div>
-        </div>
-
         <!-- Time lost hero -->
         <div id="time-lost-hero" class="time-lost-hero">
             <div class="big-label">Loading...</div>
@@ -80,13 +69,22 @@
             <div id="discrepancy-stats"></div>
         </div>
 
-        <!-- Reporting patterns (toggleable) -->
+        <!-- Reliability & patterns (toggleable) -->
         <div class="card">
             <button id="toggle-patterns-btn" class="toggle-btn" onclick="togglePatterns()">
-                Show reporting patterns ▼
+                Show reliability &amp; patterns ▼
             </button>
             <div id="patterns-container" style="display: none;">
                 <div style="margin-top: 16px;">
+                    <div class="card-title">District line reliability — all branches (last 14 days)</div>
+                    <div id="reliability-chart"></div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <div class="card-title">Wimbledon branch reliability (last 14 days)</div>
+                    <div id="reliability-wimbledon-chart"></div>
+                </div>
+                <div id="reliability-summary"></div>
+                <div style="margin-top: 24px;">
                     <div class="card-title">Reports by station</div>
                     <div id="station-chart" class="bar-chart"></div>
                 </div>
