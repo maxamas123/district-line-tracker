@@ -11,7 +11,9 @@ var SUPABASE_URL = "https://mpcxvcrlvvybpxnmvkte.supabase.co";
 var SUPABASE_ANON_KEY = "sb_publishable_Mdg7Ho_4EGfYeX98I9_TOg_XIS5C9Ky";
 
 /* ---- TfL API ---- */
-var TFL_API = "https://api.tfl.gov.uk/Line/district/Status";
+/* Use our Netlify proxy to avoid CORS issues on mobile browsers
+   (the TfL API doesn't send Access-Control-Allow-Origin headers). */
+var TFL_API = "/.netlify/functions/tfl-status";
 var currentTflStatus = null;
 
 /* Wimbledon branch stations for checking disruption relevance */
@@ -70,21 +72,14 @@ function parseTflResponse(data) {
 
 function fetchTflStatus() {
     return fetch(TFL_API)
-        .then(function (res) { return res.json(); })
+        .then(function (res) {
+            if (!res.ok) throw new Error("proxy error");
+            return res.json();
+        })
         .then(parseTflResponse)
         .catch(function () {
-            // First attempt failed — retry once after a short pause
-            return new Promise(function (resolve) {
-                setTimeout(function () {
-                    fetch(TFL_API)
-                        .then(function (res) { return res.json(); })
-                        .then(function (data) { resolve(parseTflResponse(data)); })
-                        .catch(function () {
-                            currentTflStatus = null;
-                            resolve(null);
-                        });
-                }, 2000);
-            });
+            currentTflStatus = null;
+            return null;
         });
 }
 
@@ -385,13 +380,14 @@ function doUpvote(reportId, btnEl) {
 
     var alreadyVoted = hasUpvoted(reportId);
 
-    // Demo mode: toggle UI only, no Supabase calls
+    // Demo mode: update DEMO_REPORTS + UI, no Supabase calls
     if (typeof isDemoMode === "function" && isDemoMode()) {
         var countEl = btnEl.querySelector(".upvote-count");
         var currentCount = countEl ? parseInt(countEl.textContent, 10) || 0 : 0;
+        var newCount;
 
         if (alreadyVoted) {
-            var newCount = Math.max(0, currentCount - 1);
+            newCount = Math.max(0, currentCount - 1);
             markUnvoted(reportId);
             btnEl.innerHTML = '&#128077; Me too <span class="upvote-count">' + newCount + '</span>';
             btnEl.classList.remove("voted");
@@ -399,7 +395,7 @@ function doUpvote(reportId, btnEl) {
             updateAffectedStats(reportId, newCount, btnEl);
             showToast("Your confirmation has been removed (dummy)", "success");
         } else {
-            var newCount = currentCount + 1;
+            newCount = currentCount + 1;
             markUpvoted(reportId);
             btnEl.innerHTML = '&#10003; Confirmed <span class="upvote-count">' + newCount + '</span>';
             btnEl.classList.add("voted");
@@ -408,8 +404,19 @@ function doUpvote(reportId, btnEl) {
             showToast("Confirmed (dummy) — your time lost has been added", "success");
         }
 
+        // Update the underlying DEMO_REPORTS array so time-lost recalculates
+        if (typeof DEMO_REPORTS !== "undefined") {
+            for (var di = 0; di < DEMO_REPORTS.length; di++) {
+                if (DEMO_REPORTS[di].id === reportId) {
+                    DEMO_REPORTS[di].upvotes = newCount;
+                    break;
+                }
+            }
+        }
+
         btnEl.disabled = false;
         btnEl.style.opacity = "";
+        if (typeof loadTimeLostHero === "function") loadTimeLostHero();
         return;
     }
 

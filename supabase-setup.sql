@@ -117,7 +117,7 @@ BEGIN
     -- Validate category
     IF p_category NOT IN (
         'General Delays', 'Signal Failure', 'Overcrowding', 'Train Cancellation',
-        'Reduced Service', 'No Announcements / Poor Comms', 'Safety Concern', 'Other'
+        'Reduced Service', 'Poor Comms', 'Safety Concern', 'Other'
     ) THEN
         RAISE EXCEPTION 'Invalid category';
     END IF;
