@@ -489,12 +489,17 @@ function showInfoModal() {
             '<p>For example: a 15-minute delay confirmed by 4 additional passengers = 15 &times; 5 = <strong>75 person-minutes (1 hr 15 min)</strong> of collective time wasted.</p>' +
             '<p>This gives TfL, MPs, and the media a real sense of the cumulative human cost of poor service.</p>' +
             '<p>Data collection began in February 2026. All figures reflect reports submitted since then.</p>' +
-            '<button class="close-modal" onclick="this.closest(\'.info-modal-overlay\').remove()">Got it</button>' +
+            '<button class="close-modal" id="info-modal-close-btn">Got it</button>' +
         '</div>';
     overlay.addEventListener("click", function (e) {
         if (e.target === overlay) overlay.remove();
     });
     document.body.appendChild(overlay);
+    var _closeBtn = document.getElementById("info-modal-close-btn");
+    if (_closeBtn) _closeBtn.addEventListener("click", function () {
+        var ov = this.closest(".info-modal-overlay");
+        if (ov) ov.remove();
+    });
 }
 
 

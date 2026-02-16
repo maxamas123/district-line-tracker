@@ -9,7 +9,10 @@ function toggleDemoMode() {
 }
 function initDemoToggle() {
     var checkbox = document.getElementById("demo-toggle");
-    if (checkbox) checkbox.checked = isDemoMode();
+    if (checkbox) {
+        checkbox.checked = isDemoMode();
+        checkbox.addEventListener("change", toggleDemoMode);
+    }
     var banner = document.getElementById("demo-banner");
     if (banner) banner.style.display = isDemoMode() ? "block" : "none";
 }

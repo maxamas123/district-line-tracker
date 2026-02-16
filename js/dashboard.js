@@ -293,13 +293,16 @@ function buildTimeLostHero(reports) {
         '<div class="big-number">' + formatHours(totalMinutes) + '</div>' +
         '<div class="big-label">' +
             'total passenger time lost' +
-            '<button class="info-btn" onclick="showInfoModal()" title="How is this calculated?">?</button>' +
+            '<button class="info-btn" id="info-btn-dash" title="How is this calculated?">?</button>' +
         '</div>' +
         '<div class="sub-stats">' +
             '<div><div class="sub-stat-value">' + formatHours(thisWeekMinutes) + '</div><div class="sub-stat-label">this week</div></div>' +
             '<div><div class="sub-stat-value">' + formatHours(thisMonthMinutes) + '</div><div class="sub-stat-label">this month</div></div>' +
             '<div><div class="sub-stat-value">' + reports.length + '</div><div class="sub-stat-label">reports</div></div>' +
         '</div>';
+
+    var _infoBtn = document.getElementById("info-btn-dash");
+    if (_infoBtn) _infoBtn.addEventListener("click", showInfoModal);
 }
 
 
@@ -761,6 +764,9 @@ function togglePatterns() {
 
 
 /* ---- Init ---- */
+var _patBtn = document.getElementById("toggle-patterns-btn");
+if (_patBtn) _patBtn.addEventListener("click", togglePatterns);
+
 if (typeof initDemoToggle === "function") initDemoToggle();
 loadDashboard();
 buildReliabilityChart();
