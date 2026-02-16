@@ -77,9 +77,24 @@ BEGIN
     -- Validate category
     IF p_category NOT IN (
         'General Delays', 'Signal Failure', 'Overcrowding', 'Train Cancellation',
-        'Reduced Service', 'No Announcements / Poor Comms', 'Safety Concern', 'Other'
+        'Reduced Service', 'Poor Comms', 'Safety Concern', 'Other'
     ) THEN
         RAISE EXCEPTION 'Invalid category';
+    END IF;
+
+    -- Validate direction
+    IF p_direction NOT IN (
+        'Eastbound (towards Earls Court)', 'Westbound (towards Wimbledon)', 'Both / General'
+    ) THEN
+        RAISE EXCEPTION 'Invalid direction';
+    END IF;
+
+    -- Truncate long text fields to prevent abuse
+    IF p_description IS NOT NULL AND LENGTH(p_description) > 1000 THEN
+        p_description := LEFT(p_description, 1000);
+    END IF;
+    IF p_reporter_name IS NOT NULL AND LENGTH(p_reporter_name) > 100 THEN
+        p_reporter_name := LEFT(p_reporter_name, 100);
     END IF;
 
     -- Insert the report
@@ -129,6 +144,21 @@ BEGIN
     -- Validate delay
     IF p_delay_minutes IS NOT NULL AND (p_delay_minutes < 0 OR p_delay_minutes > 60) THEN
         RAISE EXCEPTION 'Delay must be between 0 and 60 minutes';
+    END IF;
+
+    -- Validate direction
+    IF p_direction NOT IN (
+        'Eastbound (towards Earls Court)', 'Westbound (towards Wimbledon)', 'Both / General'
+    ) THEN
+        RAISE EXCEPTION 'Invalid direction';
+    END IF;
+
+    -- Truncate long text fields
+    IF p_description IS NOT NULL AND LENGTH(p_description) > 1000 THEN
+        p_description := LEFT(p_description, 1000);
+    END IF;
+    IF p_reporter_name IS NOT NULL AND LENGTH(p_reporter_name) > 100 THEN
+        p_reporter_name := LEFT(p_reporter_name, 100);
     END IF;
 
     -- Update the report (does NOT touch upvotes or TfL status fields)

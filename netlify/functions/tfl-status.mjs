@@ -13,7 +13,7 @@ export default async function handler(request) {
         return new Response(null, {
             status: 204,
             headers: {
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": "https://fixthedistrict.org",
                 "Access-Control-Allow-Methods": "GET, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type",
                 "Access-Control-Max-Age": "86400"
@@ -29,7 +29,7 @@ export default async function handler(request) {
                 status: 502,
                 headers: {
                     "Content-Type": "application/json",
-                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Origin": "https://fixthedistrict.org",
                     "Cache-Control": "no-cache"
                 }
             });
@@ -41,7 +41,7 @@ export default async function handler(request) {
             status: 200,
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": "https://fixthedistrict.org",
                 "Cache-Control": "public, max-age=60"  // Cache for 60s
             }
         });
@@ -51,7 +51,7 @@ export default async function handler(request) {
             status: 500,
             headers: {
                 "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*"
+                "Access-Control-Allow-Origin": "https://fixthedistrict.org"
             }
         });
     }

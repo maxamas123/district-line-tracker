@@ -122,6 +122,21 @@ BEGIN
         RAISE EXCEPTION 'Invalid category';
     END IF;
 
+    -- Validate direction
+    IF p_direction NOT IN (
+        'Eastbound (towards Earls Court)', 'Westbound (towards Wimbledon)', 'Both / General'
+    ) THEN
+        RAISE EXCEPTION 'Invalid direction';
+    END IF;
+
+    -- Truncate long text fields to prevent abuse
+    IF p_description IS NOT NULL AND LENGTH(p_description) > 1000 THEN
+        p_description := LEFT(p_description, 1000);
+    END IF;
+    IF p_reporter_name IS NOT NULL AND LENGTH(p_reporter_name) > 100 THEN
+        p_reporter_name := LEFT(p_reporter_name, 100);
+    END IF;
+
     -- Insert the report
     INSERT INTO reports (
         incident_date, incident_time, station, direction, category,
@@ -171,6 +186,21 @@ BEGIN
         RAISE EXCEPTION 'Delay must be between 0 and 60 minutes';
     END IF;
 
+    -- Validate direction
+    IF p_direction NOT IN (
+        'Eastbound (towards Earls Court)', 'Westbound (towards Wimbledon)', 'Both / General'
+    ) THEN
+        RAISE EXCEPTION 'Invalid direction';
+    END IF;
+
+    -- Truncate long text fields
+    IF p_description IS NOT NULL AND LENGTH(p_description) > 1000 THEN
+        p_description := LEFT(p_description, 1000);
+    END IF;
+    IF p_reporter_name IS NOT NULL AND LENGTH(p_reporter_name) > 100 THEN
+        p_reporter_name := LEFT(p_reporter_name, 100);
+    END IF;
+
     -- Update the report (does NOT touch upvotes or TfL status fields)
     UPDATE reports SET
         incident_date = p_incident_date,
@@ -206,27 +236,111 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 8. RPC: Upvote (atomic increment — no ownership required)
-CREATE OR REPLACE FUNCTION upvote_report(report_id UUID)
+-- 8. Vote tracking table
+-- Prevents the same voter_id from upvoting a report more than once.
+-- voter_id is a hash sent by the client (e.g. a random ID stored in localStorage).
+CREATE TABLE IF NOT EXISTS vote_log (
+    report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
+    voter_id TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (report_id, voter_id)
+);
+
+ALTER TABLE vote_log ENABLE ROW LEVEL SECURITY;
+-- No policies = anon cannot read/write directly. All via SECURITY DEFINER RPCs.
+
+
+-- 9. RPC: Upvote (with server-side dedup via voter_id)
+CREATE OR REPLACE FUNCTION upvote_report(report_id UUID, p_voter_id TEXT DEFAULT NULL)
 RETURNS INTEGER AS $$
 DECLARE
     new_count INTEGER;
 BEGIN
-    UPDATE reports SET upvotes = upvotes + 1 WHERE id = report_id
+    -- If voter_id provided, check for duplicate vote
+    IF p_voter_id IS NOT NULL AND p_voter_id != '' THEN
+        IF EXISTS (
+            SELECT 1 FROM vote_log
+            WHERE vote_log.report_id = upvote_report.report_id
+              AND vote_log.voter_id = p_voter_id
+        ) THEN
+            -- Already voted — return current count without incrementing
+            SELECT upvotes INTO new_count FROM reports WHERE id = upvote_report.report_id;
+            RETURN COALESCE(new_count, 0);
+        END IF;
+
+        -- Record the vote
+        INSERT INTO vote_log (report_id, voter_id)
+        VALUES (upvote_report.report_id, p_voter_id);
+    END IF;
+
+    -- Cap upvotes at 200 to prevent abuse
+    UPDATE reports SET upvotes = LEAST(upvotes + 1, 200)
+    WHERE id = upvote_report.report_id
     RETURNING upvotes INTO new_count;
-    RETURN new_count;
+    RETURN COALESCE(new_count, 0);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 9. RPC: Downvote (for toggling "Me too" off — no ownership required)
-CREATE OR REPLACE FUNCTION downvote_report(report_id UUID)
+-- 10. RPC: Downvote (with server-side dedup cleanup)
+CREATE OR REPLACE FUNCTION downvote_report(report_id UUID, p_voter_id TEXT DEFAULT NULL)
 RETURNS INTEGER AS $$
 DECLARE
     new_count INTEGER;
 BEGIN
-    UPDATE reports SET upvotes = GREATEST(upvotes - 1, 0) WHERE id = report_id
+    -- Remove vote record if voter_id provided
+    IF p_voter_id IS NOT NULL AND p_voter_id != '' THEN
+        DELETE FROM vote_log
+        WHERE vote_log.report_id = downvote_report.report_id
+          AND vote_log.voter_id = p_voter_id;
+    END IF;
+
+    UPDATE reports SET upvotes = GREATEST(upvotes - 1, 0)
+    WHERE id = downvote_report.report_id
     RETURNING upvotes INTO new_count;
-    RETURN new_count;
+    RETURN COALESCE(new_count, 0);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 10. RPC: Log TfL status (with server-side validation + dedup)
+-- Called by the client to supplement the cron job. Validates
+-- severity range and enforces a 14-minute dedup window so the
+-- table can't be spammed.
+CREATE OR REPLACE FUNCTION log_tfl_status(
+    p_status_severity INTEGER,
+    p_status_description TEXT,
+    p_reason TEXT DEFAULT NULL
+) RETURNS VOID AS $$
+BEGIN
+    -- Validate severity (TfL uses 0-10 range)
+    IF p_status_severity IS NULL OR p_status_severity < 0 OR p_status_severity > 20 THEN
+        RAISE EXCEPTION 'Invalid status severity';
+    END IF;
+
+    -- Validate description is not empty
+    IF p_status_description IS NULL OR LENGTH(TRIM(p_status_description)) = 0 THEN
+        RAISE EXCEPTION 'Status description is required';
+    END IF;
+
+    -- Truncate long fields to prevent abuse
+    IF LENGTH(p_status_description) > 200 THEN
+        p_status_description := LEFT(p_status_description, 200);
+    END IF;
+    IF p_reason IS NOT NULL AND LENGTH(p_reason) > 1000 THEN
+        p_reason := LEFT(p_reason, 1000);
+    END IF;
+
+    -- Dedup: skip if there's already an entry within the last 14 minutes
+    IF EXISTS (
+        SELECT 1 FROM tfl_status_log
+        WHERE checked_at >= (now() - interval '14 minutes')
+        LIMIT 1
+    ) THEN
+        RETURN; -- Silently skip — not an error
+    END IF;
+
+    INSERT INTO tfl_status_log (status_severity, status_description, reason)
+    VALUES (p_status_severity, p_status_description, p_reason);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

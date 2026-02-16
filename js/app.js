@@ -334,6 +334,18 @@ function updateAffectedStats(reportId, newUpvoteCount, btnEl) {
 }
 
 
+/* ---- Voter identity (for server-side dedup) ---- */
+
+function getVoterId() {
+    var id = localStorage.getItem("dlt_voter_id");
+    if (!id) {
+        id = generateOwnerToken(); // reuse the crypto random function
+        localStorage.setItem("dlt_voter_id", id);
+    }
+    return id;
+}
+
+
 /* ---- Upvote helpers (toggleable) ---- */
 
 function hasUpvoted(reportId) {
@@ -422,7 +434,7 @@ function doUpvote(reportId, btnEl) {
 
     if (alreadyVoted) {
         // Toggle OFF: remove upvote
-        supabaseRpc("downvote_report", { report_id: reportId })
+        supabaseRpc("downvote_report", { report_id: reportId, p_voter_id: getVoterId() })
             .then(function (resp) {
                 var newCount = extractRpcCount(resp);
                 markUnvoted(reportId);
@@ -442,7 +454,7 @@ function doUpvote(reportId, btnEl) {
             });
     } else {
         // Toggle ON: add upvote
-        supabaseRpc("upvote_report", { report_id: reportId })
+        supabaseRpc("upvote_report", { report_id: reportId, p_voter_id: getVoterId() })
             .then(function (resp) {
                 var newCount = extractRpcCount(resp);
                 markUpvoted(reportId);
@@ -523,11 +535,11 @@ function showEditModal(report) {
             '<h3>Edit your report</h3>' +
             '<div class="form-group">' +
                 '<label>Date</label>' +
-                '<input type="date" id="edit-date" value="' + (report.incident_date || '') + '" min="2026-01-01">' +
+                '<input type="date" id="edit-date" min="2026-01-01">' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Time</label>' +
-                '<input type="time" id="edit-time" value="' + (report.incident_time || '') + '">' +
+                '<input type="time" id="edit-time">' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Station</label>' +
@@ -543,11 +555,11 @@ function showEditModal(report) {
             '</div>' +
             '<div class="form-group">' +
                 '<label>Delay (minutes)</label>' +
-                '<input type="number" id="edit-delay" min="0" max="60" value="' + (report.delay_minutes || '') + '">' +
+                '<input type="number" id="edit-delay" min="0" max="60">' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Description</label>' +
-                '<textarea id="edit-description" rows="3">' + (report.description || '') + '</textarea>' +
+                '<textarea id="edit-description" rows="3"></textarea>' +
             '</div>' +
             '<div class="form-group">' +
                 '<label>Your name</label>' +
@@ -565,7 +577,11 @@ function showEditModal(report) {
 
     document.body.appendChild(overlay);
 
-    // Set name value safely via JS (avoids quote escaping issues in innerHTML)
+    // Set all values safely via JS .value property (avoids XSS from innerHTML injection)
+    document.getElementById("edit-date").value = report.incident_date || "";
+    document.getElementById("edit-time").value = report.incident_time || "";
+    document.getElementById("edit-delay").value = report.delay_minutes || "";
+    document.getElementById("edit-description").value = report.description || "";
     document.getElementById("edit-name").value = report.reporter_name || "";
 
     document.getElementById("edit-cancel-btn").addEventListener("click", function () {
@@ -629,16 +645,9 @@ function showEditModal(report) {
                 p_delay_minutes: updated.delay_minutes,
                 p_description: updated.description,
                 p_reporter_name: updated.reporter_name
-            }).catch(function (rpcErr) {
-                // Fallback if RPC not yet available (migration not run)
-                if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
-                    return supabaseUpdate("reports", report.id, updated);
-                }
-                throw rpcErr;
             });
         } else {
-            // Legacy report without token — use direct update
-            editPromise = supabaseUpdate("reports", report.id, updated);
+            editPromise = Promise.reject(new Error("No ownership token — cannot edit this report"));
         }
 
         editPromise
@@ -706,16 +715,9 @@ function showDeleteConfirm(reportId) {
             deletePromise = supabaseRpc("delete_report", {
                 p_report_id: reportId,
                 p_owner_token: ownerToken
-            }).catch(function (rpcErr) {
-                // Fallback if RPC not yet available (migration not run)
-                if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
-                    return supabaseDelete("reports", reportId);
-                }
-                throw rpcErr;
             });
         } else {
-            // Legacy report without token — use direct delete
-            deletePromise = supabaseDelete("reports", reportId);
+            deletePromise = Promise.reject(new Error("No ownership token — cannot delete this report"));
         }
 
         deletePromise
@@ -860,31 +862,19 @@ function initReportForm() {
                 tfl_status_reason: rpcArgs.p_tfl_status_reason
             };
 
-            return supabaseRpc("create_report", rpcArgs)
-                .catch(function (rpcErr) {
-                    // Fallback: if RPC function doesn't exist yet (migration not run),
-                    // use direct insert
-                    if (rpcErr.message && rpcErr.message.indexOf("Could not find the function") !== -1) {
-                        var directRow = {
-                            incident_date: rpcArgs.p_incident_date,
-                            incident_time: rpcArgs.p_incident_time,
-                            station: rpcArgs.p_station,
-                            direction: rpcArgs.p_direction,
-                            category: rpcArgs.p_category,
-                            delay_minutes: rpcArgs.p_delay_minutes,
-                            description: rpcArgs.p_description,
-                            reporter_name: rpcArgs.p_reporter_name,
-                            tfl_status_severity: rpcArgs.p_tfl_status_severity,
-                            tfl_status_description: rpcArgs.p_tfl_status_description,
-                            tfl_status_reason: rpcArgs.p_tfl_status_reason
-                        };
-                        return supabaseInsert("reports", directRow).then(function (data) {
-                            return (data && data[0] && data[0].id) ? data[0].id : null;
-                        });
-                    }
-                    throw rpcErr;
-                })
-                .then(function (result) {
+            return fetch("/.netlify/functions/submit-report", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(rpcArgs)
+            }).then(function (res) {
+                if (res.status === 429) {
+                    return res.json().then(function (err) { throw new Error(err.error || "Rate limited"); });
+                }
+                if (!res.ok) {
+                    return res.json().then(function (err) { throw new Error(err.message || "Submission failed"); });
+                }
+                return res.json();
+            }).then(function (result) {
                 // RPC returns a UUID, fallback returns extracted id
                 var reportId = typeof result === "string" ? result :
                     (Array.isArray(result) && result.length > 0 ? String(result[0]) : null);
@@ -961,7 +951,7 @@ function showDiscrepancyNote(row, isHistorical) {
         var verbAlt = isHistorical ? "TfL was reporting" : "TfL is currently reporting";
         noteEl.className = "discrepancy-note match";
         noteEl.innerHTML =
-            verbAlt + ": <strong>" + tflDescription +
+            verbAlt + ": <strong>" + escapeHtmlChars(tflDescription) +
             "</strong>. Your report helps document the real-world impact on the Wimbledon branch.";
         noteEl.style.display = "block";
     } else {
@@ -978,27 +968,14 @@ function showDiscrepancyNote(row, isHistorical) {
 function logTflStatusToDb(status) {
     if (!status) return;
 
-    // Check if there's already a recent entry (within 14 minutes)
-    var cutoff = new Date(Date.now() - 14 * 60 * 1000).toISOString();
-    supabaseSelect("tfl_status_log", "checked_at=gte." + encodeURIComponent(cutoff) + "&limit=1")
-        .then(function (rows) {
-            if (rows && rows.length > 0) return; // Already have a recent entry
-
-            // No recent entry — log this one
-            var row = {
-                status_severity: status.severity,
-                status_description: status.description,
-                reason: status.reason || null
-            };
-
-            return supabaseInsert("tfl_status_log", row);
-        })
-        .then(function () {
-            // Logged successfully (or skipped)
-        })
-        .catch(function () {
-            // Silent fail — logging is best-effort
-        });
+    // Use the validated RPC function — dedup is handled server-side
+    supabaseRpc("log_tfl_status", {
+        p_status_severity: status.severity,
+        p_status_description: status.description,
+        p_reason: status.reason || null
+    }).catch(function () {
+        // Silent fail — logging is best-effort
+    });
 }
 
 
