@@ -1,10 +1,12 @@
 -- ============================================================
 -- Fix The District - Supabase Setup
 -- Run this in the Supabase SQL Editor (Dashboard > SQL Editor)
+--
+-- This script is IDEMPOTENT — safe to re-run at any time.
 -- ============================================================
 
 -- 1. Reports table: stores every delay report
-CREATE TABLE reports (
+CREATE TABLE IF NOT EXISTS reports (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     created_at TIMESTAMPTZ DEFAULT now(),
     incident_date DATE NOT NULL,
@@ -20,24 +22,32 @@ CREATE TABLE reports (
     -- TfL official status captured at the moment of report
     tfl_status_severity INTEGER,
     tfl_status_description TEXT,
-    tfl_status_reason TEXT,
-
-    -- Constraints
-    CONSTRAINT chk_delay_range CHECK (delay_minutes IS NULL OR (delay_minutes >= 0 AND delay_minutes <= 60)),
-    CONSTRAINT chk_upvotes_positive CHECK (upvotes >= 0)
+    tfl_status_reason TEXT
 );
 
 -- Indexes for common queries
-CREATE INDEX idx_reports_date ON reports(incident_date);
-CREATE INDEX idx_reports_station ON reports(station);
-CREATE INDEX idx_reports_category ON reports(category);
+CREATE INDEX IF NOT EXISTS idx_reports_date ON reports(incident_date);
+CREATE INDEX IF NOT EXISTS idx_reports_station ON reports(station);
+CREATE INDEX IF NOT EXISTS idx_reports_category ON reports(category);
+
+-- Constraints (added safely — skip if already present)
+DO $$
+BEGIN
+    ALTER TABLE reports ADD CONSTRAINT chk_delay_range
+        CHECK (delay_minutes IS NULL OR (delay_minutes >= 0 AND delay_minutes <= 60));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+    ALTER TABLE reports ADD CONSTRAINT chk_upvotes_positive
+        CHECK (upvotes >= 0);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 
 -- 2. Report ownership tokens
--- Each report gets a random token on creation, stored here.
--- The anon role cannot read this table (no SELECT policy).
--- All access goes through SECURITY DEFINER functions.
-CREATE TABLE report_tokens (
+CREATE TABLE IF NOT EXISTS report_tokens (
     report_id UUID PRIMARY KEY REFERENCES reports(id) ON DELETE CASCADE,
     owner_token TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now()
@@ -48,7 +58,7 @@ ALTER TABLE report_tokens ENABLE ROW LEVEL SECURITY;
 
 
 -- 3. TfL status log: snapshots from the TfL API (every 15 mins)
-CREATE TABLE tfl_status_log (
+CREATE TABLE IF NOT EXISTS tfl_status_log (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     checked_at TIMESTAMPTZ DEFAULT now(),
     status_severity INTEGER NOT NULL,
@@ -57,15 +67,13 @@ CREATE TABLE tfl_status_log (
     raw_response JSONB
 );
 
-CREATE INDEX idx_tfl_status_checked ON tfl_status_log(checked_at);
+CREATE INDEX IF NOT EXISTS idx_tfl_status_checked ON tfl_status_log(checked_at);
 
 
 -- 4. Row Level Security
--- Reports: anyone can read, all writes go through RPC functions.
--- tfl_status_log: anyone can read, only service_role can write.
-
 ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read reports" ON reports;
 CREATE POLICY "Anyone can read reports"
     ON reports FOR SELECT
     USING (true);
@@ -75,6 +83,7 @@ CREATE POLICY "Anyone can read reports"
 
 ALTER TABLE tfl_status_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read tfl status" ON tfl_status_log;
 CREATE POLICY "Anyone can read tfl status"
     ON tfl_status_log FOR SELECT
     USING (true);
@@ -173,12 +182,14 @@ CREATE OR REPLACE FUNCTION edit_report(
     p_reporter_name TEXT DEFAULT 'Anonymous'
 ) RETURNS VOID AS $$
 BEGIN
-    -- Verify ownership
-    IF NOT EXISTS (
-        SELECT 1 FROM report_tokens
-        WHERE report_id = p_report_id AND owner_token = p_owner_token
-    ) THEN
-        RAISE EXCEPTION 'You do not have permission to edit this report';
+    -- Verify ownership (legacy reports without tokens are allowed)
+    IF EXISTS (SELECT 1 FROM report_tokens WHERE report_id = p_report_id) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM report_tokens
+            WHERE report_id = p_report_id AND owner_token = p_owner_token
+        ) THEN
+            RAISE EXCEPTION 'You do not have permission to edit this report';
+        END IF;
     END IF;
 
     -- Validate delay
@@ -217,18 +228,25 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- 7. RPC: Delete a report (requires matching ownership token)
+-- For reports created before the token system, no token exists in
+-- report_tokens — allow those to be deleted (they had no protection before).
+-- For new reports, the token must match.
 CREATE OR REPLACE FUNCTION delete_report(
     p_report_id UUID,
     p_owner_token TEXT
 ) RETURNS VOID AS $$
 BEGIN
-    -- Verify ownership
-    IF NOT EXISTS (
-        SELECT 1 FROM report_tokens
-        WHERE report_id = p_report_id AND owner_token = p_owner_token
-    ) THEN
-        RAISE EXCEPTION 'You do not have permission to delete this report';
+    -- Check if the report has a token (new system)
+    IF EXISTS (SELECT 1 FROM report_tokens WHERE report_id = p_report_id) THEN
+        -- Token exists — must match
+        IF NOT EXISTS (
+            SELECT 1 FROM report_tokens
+            WHERE report_id = p_report_id AND owner_token = p_owner_token
+        ) THEN
+            RAISE EXCEPTION 'You do not have permission to delete this report';
+        END IF;
     END IF;
+    -- If no token row exists, this is a legacy report — allow delete
 
     -- Delete the report (report_tokens row cascades)
     DELETE FROM reports WHERE id = p_report_id;
@@ -237,8 +255,6 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- 8. Vote tracking table
--- Prevents the same voter_id from upvoting a report more than once.
--- voter_id is a hash sent by the client (e.g. a random ID stored in localStorage).
 CREATE TABLE IF NOT EXISTS vote_log (
     report_id UUID NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
     voter_id TEXT NOT NULL,
@@ -303,10 +319,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
--- 10. RPC: Log TfL status (with server-side validation + dedup)
--- Called by the client to supplement the cron job. Validates
--- severity range and enforces a 14-minute dedup window so the
--- table can't be spammed.
+-- 11. RPC: Log TfL status (with server-side validation + dedup)
 CREATE OR REPLACE FUNCTION log_tfl_status(
     p_status_severity INTEGER,
     p_status_description TEXT,
@@ -344,3 +357,15 @@ BEGIN
     VALUES (p_status_severity, p_status_description, p_reason);
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
+-- 12. Grant execute permissions to anon role (required for PostgREST)
+GRANT EXECUTE ON FUNCTION create_report(DATE, TIME, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION edit_report(UUID, TEXT, DATE, TIME, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION delete_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION upvote_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION downvote_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION log_tfl_status(INTEGER, TEXT, TEXT) TO anon;
+
+-- Refresh PostgREST schema cache
+NOTIFY pgrst, 'reload schema';

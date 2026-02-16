@@ -133,12 +133,14 @@ CREATE OR REPLACE FUNCTION edit_report(
     p_reporter_name TEXT DEFAULT 'Anonymous'
 ) RETURNS VOID AS $$
 BEGIN
-    -- Verify ownership
-    IF NOT EXISTS (
-        SELECT 1 FROM report_tokens
-        WHERE report_id = p_report_id AND owner_token = p_owner_token
-    ) THEN
-        RAISE EXCEPTION 'You do not have permission to edit this report';
+    -- Verify ownership (legacy reports without tokens are allowed)
+    IF EXISTS (SELECT 1 FROM report_tokens WHERE report_id = p_report_id) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM report_tokens
+            WHERE report_id = p_report_id AND owner_token = p_owner_token
+        ) THEN
+            RAISE EXCEPTION 'You do not have permission to edit this report';
+        END IF;
     END IF;
 
     -- Validate delay
@@ -177,18 +179,24 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 
 -- 6. RPC: Delete a report (requires matching ownership token)
+-- Legacy reports (created before token system) have no entry in report_tokens,
+-- so we allow those to be deleted. New reports require a matching token.
 CREATE OR REPLACE FUNCTION delete_report(
     p_report_id UUID,
     p_owner_token TEXT
 ) RETURNS VOID AS $$
 BEGIN
-    -- Verify ownership
-    IF NOT EXISTS (
-        SELECT 1 FROM report_tokens
-        WHERE report_id = p_report_id AND owner_token = p_owner_token
-    ) THEN
-        RAISE EXCEPTION 'You do not have permission to delete this report';
+    -- Check if the report has a token (new system)
+    IF EXISTS (SELECT 1 FROM report_tokens WHERE report_id = p_report_id) THEN
+        -- Token exists — must match
+        IF NOT EXISTS (
+            SELECT 1 FROM report_tokens
+            WHERE report_id = p_report_id AND owner_token = p_owner_token
+        ) THEN
+            RAISE EXCEPTION 'You do not have permission to delete this report';
+        END IF;
     END IF;
+    -- If no token row exists, this is a legacy report — allow delete
 
     -- Delete the report (report_tokens row cascades)
     DELETE FROM reports WHERE id = p_report_id;
@@ -210,3 +218,15 @@ BEGIN
         CHECK (upvotes >= 0);
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+
+-- 8. Grant execute permissions to anon role (required for PostgREST)
+GRANT EXECUTE ON FUNCTION create_report(DATE, TIME, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT, INTEGER, TEXT, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION edit_report(UUID, TEXT, DATE, TIME, TEXT, TEXT, TEXT, INTEGER, TEXT, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION delete_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION upvote_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION downvote_report(UUID, TEXT) TO anon;
+GRANT EXECUTE ON FUNCTION log_tfl_status(INTEGER, TEXT, TEXT) TO anon;
+
+-- Refresh PostgREST schema cache
+NOTIFY pgrst, 'reload schema';

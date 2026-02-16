@@ -196,7 +196,11 @@ function supabaseRpc(fnName, args) {
                 throw new Error(err.message || "RPC " + fnName + " failed");
             });
         }
-        return res.json();
+        // VOID functions return empty body — don't try to parse as JSON
+        return res.text().then(function (text) {
+            if (!text || text.trim() === "") return null;
+            return JSON.parse(text);
+        });
     });
 }
 
